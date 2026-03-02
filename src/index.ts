@@ -48,6 +48,7 @@ const CrearGastoSchema = z.object({
     'SALUD',
     'EDUCACION',
     'INVERSIONES',
+    'ABONO',
     'OTROS'
   ]).optional(),
   categoriaPersonalizadaId: z.string().uuid().optional(),
@@ -110,6 +111,19 @@ const AbonarDeudaSchema = z.object({
   deudaId: z.string().uuid('ID de deuda invalido'),
   monto: z.number().positive('El monto debe ser positivo'),
   descripcion: z.string().optional(),
+});
+
+const CambiarEstadoMetaSchema = z.object({
+  metaId: z.string().uuid('ID de meta inválido'),
+  estado: z.enum(['ACTIVA', 'COMPLETADA', 'CANCELADA']),
+});
+
+const ConsultarEstadoDeudaSchema = z.object({
+  estado: z.enum(['PENDIENTE', 'COMPLETADA']),
+});
+
+const ObtenerAhorrosPorMetaSchema = z.object({
+  metaId: z.string().uuid('ID de meta inválido'),
 });
 
 // ==================== DEFINICIÓN DE HERRAMIENTAS ====================
@@ -181,7 +195,7 @@ También se puede usar una categoría personalizada del usuario proporcionando s
         monto: { type: 'number', description: 'Monto del gasto (obligatorio)' },
         categoria: {
           type: 'string',
-          enum: ['COMIDA', 'PAREJA', 'COMPRAS', 'TRANSPORTE', 'SERVICIOS', 'ENTRETENIMIENTO', 'SALUD', 'EDUCACION', 'OTROS'],
+          enum: ['COMIDA', 'PAREJA', 'COMPRAS', 'TRANSPORTE', 'SERVICIOS', 'ENTRETENIMIENTO', 'SALUD', 'EDUCACION', 'INVERSIONES', 'ABONO', 'OTROS'],
           description: 'Categoría predeterminada del gasto (usar solo si no se usa categoriaPersonalizadaId)'
         },
         categoriaPersonalizadaId: { type: 'string', description: 'ID de una categoría personalizada del usuario (alternativa a categoria)' },
@@ -342,6 +356,33 @@ También se puede usar una categoría personalizada del usuario proporcionando s
       required: ['metaId', 'monto'],
     },
   },
+  {
+    name: 'cambiarEstadoMeta',
+    description: 'Cambia el estado de una meta financiera a ACTIVA, COMPLETADA o CANCELADA.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        metaId: { type: 'string', description: 'ID de la meta financiera' },
+        estado: {
+          type: 'string',
+          enum: ['ACTIVA', 'COMPLETADA', 'CANCELADA'],
+          description: 'Nuevo estado de la meta',
+        },
+      },
+      required: ['metaId', 'estado'],
+    },
+  },
+  {
+    name: 'obtenerAhorrosPorMeta',
+    description: 'Obtiene todos los ahorros asociados a una meta financiera específica.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        metaId: { type: 'string', description: 'ID de la meta financiera' },
+      },
+      required: ['metaId'],
+    },
+  },
 
   // --- BALANCE Y RESUMEN ---
   {
@@ -402,7 +443,7 @@ identificando patrones de gasto y evaluando el cumplimiento de metas.
         fechaFin: { type: 'string', description: 'Fecha final en formato YYYY-MM-DD' },
         tipo: {
           type: 'string',
-          enum: ['TODOS', 'INGRESOS', 'GASTOS', 'AHORROS'],
+          enum: ['TODOS', 'INGRESOS', 'GASTOS', 'AHORROS', 'INVERSIONES'],
           description: 'Tipo de registros a consultar (por defecto TODOS)'
         },
       },
@@ -498,6 +539,21 @@ Cuando el monto restante llega a 0, se marca como COMPLETADA automaticamente.`,
         deudaId: { type: 'string', description: 'ID de la deuda o prestamo' },
       },
       required: ['deudaId'],
+    },
+  },
+  {
+    name: 'obtenerDeudasPorEstado',
+    description: 'Obtiene deudas o préstamos filtrados por estado: PENDIENTE (activos) o COMPLETADA (saldados).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        estado: {
+          type: 'string',
+          enum: ['PENDIENTE', 'COMPLETADA'],
+          description: 'Estado a filtrar',
+        },
+      },
+      required: ['estado'],
     },
   },
   {
@@ -792,6 +848,28 @@ ${validated.fechaLimite ? `- Fecha límite: ${validated.fechaLimite}` : ''}`;
         return `Error al registrar progreso: ${result.message}`;
       }
 
+      case 'cambiarEstadoMeta': {
+        const validated = CambiarEstadoMetaSchema.parse(args);
+        const result = await apiClient.cambiarEstadoMeta(validated.metaId, validated.estado);
+        if (result.success) {
+          return `Estado de la meta actualizado a ${validated.estado} correctamente.`;
+        }
+        return `Error al cambiar estado: ${result.message}`;
+      }
+
+      case 'obtenerAhorrosPorMeta': {
+        const validated = ObtenerAhorrosPorMetaSchema.parse(args);
+        const result = await apiClient.obtenerAhorrosPorMeta(validated.metaId);
+        if (result.success && result.data.length > 0) {
+          const total = result.data.reduce((sum: number, a: any) => sum + a.monto, 0);
+          const ahorros = result.data.map((a: any) =>
+            `- ${a.fecha}: $${a.monto.toLocaleString()}${a.descripcion ? ` — ${a.descripcion}` : ''}`
+          ).join('\n');
+          return `Ahorros asociados a la meta:\n${ahorros}\n\nTotal ahorrado: $${total.toLocaleString()}`;
+        }
+        return 'No hay ahorros asociados a esta meta.';
+      }
+
       // --- BALANCE ---
       case 'obtenerBalance': {
         const result = await apiClient.obtenerBalance();
@@ -822,11 +900,13 @@ ${validated.fechaLimite ? `- Fecha límite: ${validated.fechaLimite}` : ''}`;
 
       // --- RESUMEN Y ANÁLISIS ---
       case 'obtenerResumenFinanciero': {
-        // Obtener balance, desglose y metas
-        const [balanceRes, desgloseRes, metasRes] = await Promise.all([
+        // Obtener balance, desglose, metas, resumen de deudas e inversiones
+        const [balanceRes, desgloseRes, metasRes, deudasRes, inversionesRes] = await Promise.all([
           apiClient.obtenerBalance(),
           apiClient.obtenerDesgloseGastos(),
           apiClient.obtenerMetasPorEstado('ACTIVA'),
+          apiClient.obtenerResumenDeudas(),
+          apiClient.obtenerInversiones('ACTIVA'),
         ]);
 
         let resumen = '📊 RESUMEN FINANCIERO\n\n';
@@ -851,8 +931,25 @@ ${validated.fechaLimite ? `- Fecha límite: ${validated.fechaLimite}` : ''}`;
         if (metasRes.success && metasRes.data.length > 0) {
           resumen += `🎯 Metas Activas:\n`;
           metasRes.data.forEach((m: any) => {
-            resumen += `- ${m.nombre}: ${m.porcentajeAvance?.toFixed(1) || 0}% completado\n`;
+            resumen += `- ${m.nombre}: ${m.porcentajeAvance?.toFixed(1) || 0}% completado ($${m.montoActual?.toLocaleString() || 0}/$${m.montoObjetivo.toLocaleString()})\n`;
           });
+          resumen += '\n';
+        }
+
+        if (deudasRes.success) {
+          const r = deudasRes.data;
+          const totalPendiente = (r.totalDeudas || 0) + (r.totalPrestamos || 0);
+          if (totalPendiente > 0) {
+            resumen += `💳 Deudas y Préstamos:\n`;
+            if (r.totalDeudas > 0) resumen += `- Deudas pendientes: $${r.totalDeudas.toLocaleString()}\n`;
+            if (r.totalPrestamos > 0) resumen += `- Préstamos por cobrar: $${r.totalPrestamos.toLocaleString()}\n`;
+            resumen += '\n';
+          }
+        }
+
+        if (inversionesRes.success && inversionesRes.data.length > 0) {
+          const totalInvertido = inversionesRes.data.reduce((sum: number, i: any) => sum + Number(i.monto), 0);
+          resumen += `📊 Inversiones Activas: ${inversionesRes.data.length} inversión(es) por $${totalInvertido.toLocaleString()}\n`;
         }
 
         return resumen;
@@ -926,7 +1023,7 @@ ${validated.fechaLimite ? `- Fecha límite: ${validated.fechaLimite}` : ''}`;
           const result = await apiClient.obtenerIngresosPorPeriodo(fechaInicio, fechaFin);
           if (result.success && result.data.length > 0) {
             result.data.forEach((i: any) => {
-              registros.push(`[INGRESO] ${i.fecha}: +$${i.monto.toLocaleString()} (${i.categoria})`);
+              registros.push(`[INGRESO] ${i.fecha}: +$${i.monto.toLocaleString()} (${i.categoria})${i.descripcion ? ` — ${i.descripcion}` : ''}`);
             });
           }
         }
@@ -935,7 +1032,7 @@ ${validated.fechaLimite ? `- Fecha límite: ${validated.fechaLimite}` : ''}`;
           const result = await apiClient.obtenerGastosPorPeriodo(fechaInicio, fechaFin);
           if (result.success && result.data.length > 0) {
             result.data.forEach((g: any) => {
-              registros.push(`[GASTO] ${g.fecha}: -$${g.monto.toLocaleString()} (${g.categoria})`);
+              registros.push(`[GASTO] ${g.fecha}: -$${g.monto.toLocaleString()} (${g.categoria})${g.descripcion ? ` — ${g.descripcion}` : ''}`);
             });
           }
         }
@@ -944,8 +1041,22 @@ ${validated.fechaLimite ? `- Fecha límite: ${validated.fechaLimite}` : ''}`;
           const result = await apiClient.obtenerAhorrosPorPeriodo(fechaInicio, fechaFin);
           if (result.success && result.data.length > 0) {
             result.data.forEach((a: any) => {
-              registros.push(`[AHORRO] ${a.fecha}: $${a.monto.toLocaleString()}`);
+              registros.push(`[AHORRO] ${a.fecha}: $${a.monto.toLocaleString()}${a.descripcion ? ` — ${a.descripcion}` : ''}`);
             });
+          }
+        }
+
+        if (tipo === 'TODOS' || tipo === 'INVERSIONES') {
+          const result = await apiClient.obtenerInversiones();
+          if (result.success && result.data.length > 0) {
+            result.data
+              .filter((i: any) => i.fechaInversion >= fechaInicio && i.fechaInversion <= fechaFin)
+              .forEach((i: any) => {
+                registros.push(`[INVERSION] ${i.fechaInversion}: -$${Number(i.monto).toLocaleString()} — ${i.nombre} [${i.estado}]`);
+                if (i.retornoReal && i.fechaRetorno >= fechaInicio && i.fechaRetorno <= fechaFin) {
+                  registros.push(`[RETORNO] ${i.fechaRetorno}: +$${Number(i.retornoReal).toLocaleString()} — ${i.nombre}`);
+                }
+              });
           }
         }
 
@@ -1045,6 +1156,18 @@ ${validated.fechaLimite ? `- Fecha limite: ${validated.fechaLimite}` : ''}`;
           return `Historial de abonos:\n${abonos}`;
         }
         return 'No hay abonos registrados para esta deuda.';
+      }
+
+      case 'obtenerDeudasPorEstado': {
+        const validated = ConsultarEstadoDeudaSchema.parse(args);
+        const result = await apiClient.obtenerDeudasPorEstado(validated.estado);
+        if (result.success && result.data.length > 0) {
+          const lista = result.data.map((d: any) =>
+            `- [${d.tipo}] ${d.descripcion}${d.entidad ? ` (${d.entidad})` : ''}: $${d.montoAbonado?.toLocaleString() || 0}/$${d.montoTotal.toLocaleString()} — ID: ${d.id}`
+          ).join('\n');
+          return `Deudas/préstamos en estado ${validated.estado}:\n${lista}`;
+        }
+        return `No hay deudas en estado ${validated.estado}.`;
       }
 
       // --- INVERSIONES ---

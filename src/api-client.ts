@@ -386,6 +386,11 @@ export class FinanzAppApiClient {
     return response.data;
   }
 
+  async obtenerDeudasPorEstado(estado: string): Promise<ApiResponse<any[]>> {
+    const response = await this.client.get<ApiResponse<any[]>>(`/deudas/estado/${estado}`);
+    return response.data;
+  }
+
   // ==================== INVERSIONES ====================
 
   async crearInversion(data: InversionRequest): Promise<ApiResponse<any>> {
