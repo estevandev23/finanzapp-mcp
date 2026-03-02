@@ -1,0 +1,34 @@
+{
+  "name": "finanzapp-mcp",
+  "version": "1.0.0",
+  "description": "MCP Server para Asistente Financiero Personal - FinanzApp",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "inspector": "npx @anthropics/mcp-inspector dist/index.js"
+  },
+  "keywords": [
+    "mcp",
+    "finanzas",
+    "claude",
+    "anthropic"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "axios": "^1.6.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.33",
+    "tsx": "^4.6.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  }
+}
