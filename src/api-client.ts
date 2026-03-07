@@ -25,6 +25,7 @@ export interface GastoRequest {
   categoriaPersonalizadaId?: string;
   descripcion?: string;
   fecha?: string;
+  metodoPago?: string;
 }
 
 export interface IngresoRequest {
@@ -35,6 +36,7 @@ export interface IngresoRequest {
   fecha?: string;
   montoAhorro?: number;
   metaId?: string;
+  metodoPago?: string;
 }
 
 export interface AhorroRequest {
@@ -81,11 +83,14 @@ export interface DeudaRequest {
   montoTotal: number;
   fechaInicio?: string;
   fechaLimite?: string;
+  categoria?: string;
+  categoriaPersonalizadaId?: string;
 }
 
 export interface AbonoRequest {
   monto: number;
   descripcion?: string;
+  metodoPago: string;
 }
 
 export interface DesgloseCategoriaResponse {
@@ -305,6 +310,11 @@ export class FinanzAppApiClient {
     const response = await this.client.get<ApiResponse<BalanceResponse>>('/balance/periodo', {
       params: { fechaInicio, fechaFin },
     });
+    return response.data;
+  }
+
+  async obtenerBalancePorMetodo(): Promise<ApiResponse<any>> {
+    const response = await this.client.get<ApiResponse<any>>('/balance/metodos');
     return response.data;
   }
 

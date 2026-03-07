@@ -34,6 +34,7 @@ const CrearIngresoSchema = z.object({
   fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   montoAhorro: z.number().min(0).optional(),
   metaId: z.string().uuid().optional(),
+  metodoPago: z.enum(['EFECTIVO', 'NEQUI', 'BANCOLOMBIA', 'OTRO']).optional(),
 });
 
 const CrearGastoSchema = z.object({
@@ -54,6 +55,7 @@ const CrearGastoSchema = z.object({
   categoriaPersonalizadaId: z.string().uuid().optional(),
   descripcion: z.string().optional(),
   fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  metodoPago: z.enum(['EFECTIVO', 'NEQUI', 'BANCOLOMBIA', 'OTRO']).optional(),
 });
 
 const CrearAhorroSchema = z.object({
@@ -105,12 +107,18 @@ const CrearDeudaSchema = z.object({
   montoTotal: z.number().positive('El monto debe ser positivo'),
   fechaInicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   fechaLimite: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  categoria: z.enum([
+    'COMIDA', 'PAREJA', 'COMPRAS', 'TRANSPORTE', 'SERVICIOS',
+    'ENTRETENIMIENTO', 'SALUD', 'EDUCACION', 'INVERSIONES', 'ABONO', 'OTROS'
+  ]).optional(),
+  categoriaPersonalizadaId: z.string().uuid().optional(),
 });
 
 const AbonarDeudaSchema = z.object({
   deudaId: z.string().uuid('ID de deuda invalido'),
   monto: z.number().positive('El monto debe ser positivo'),
   descripcion: z.string().optional(),
+  metodoPago: z.enum(['EFECTIVO', 'NEQUI', 'BANCOLOMBIA', 'OTRO']).default('EFECTIVO'),
 });
 
 const CambiarEstadoMetaSchema = z.object({
@@ -135,7 +143,8 @@ const tools: Tool[] = [
     description: `Registra un nuevo ingreso de dinero para el usuario.
 Categorías predeterminadas: TRABAJO_PRINCIPAL, TRABAJO_EXTRA, GANANCIAS_ADICIONALES, INVERSIONES, OTROS.
 También se puede usar una categoría personalizada del usuario proporcionando su ID.
-Opcionalmente se puede especificar un monto para ahorro que se descuenta del ingreso, y asociar a una meta financiera.`,
+Opcionalmente se puede especificar un monto para ahorro que se descuenta del ingreso, y asociar a una meta financiera.
+Se puede indicar el método de pago: EFECTIVO, NEQUI, BANCOLOMBIA, OTRO (por defecto EFECTIVO).`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -150,6 +159,11 @@ Opcionalmente se puede especificar un monto para ahorro que se descuenta del ing
         fecha: { type: 'string', description: 'Fecha en formato YYYY-MM-DD (por defecto hoy)' },
         montoAhorro: { type: 'number', description: 'Monto a destinar para ahorro (opcional)' },
         metaId: { type: 'string', description: 'ID de la meta financiera a la que asociar el ahorro (opcional)' },
+        metodoPago: {
+          type: 'string',
+          enum: ['EFECTIVO', 'NEQUI', 'BANCOLOMBIA', 'OTRO'],
+          description: 'Método de pago por el que se recibió el ingreso (por defecto EFECTIVO)'
+        },
       },
       required: ['monto'],
     },
@@ -188,7 +202,8 @@ Opcionalmente se puede especificar un monto para ahorro que se descuenta del ing
     name: 'crearEgreso',
     description: `Registra un nuevo gasto/egreso para el usuario.
 Categorías predeterminadas: COMIDA, PAREJA, COMPRAS, TRANSPORTE, SERVICIOS, ENTRETENIMIENTO, SALUD, EDUCACION, OTROS.
-También se puede usar una categoría personalizada del usuario proporcionando su ID.`,
+También se puede usar una categoría personalizada del usuario proporcionando su ID.
+Se puede indicar el método de pago: EFECTIVO, NEQUI, BANCOLOMBIA, OTRO (por defecto EFECTIVO).`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -201,6 +216,11 @@ También se puede usar una categoría personalizada del usuario proporcionando s
         categoriaPersonalizadaId: { type: 'string', description: 'ID de una categoría personalizada del usuario (alternativa a categoria)' },
         descripcion: { type: 'string', description: 'Descripción opcional del gasto' },
         fecha: { type: 'string', description: 'Fecha en formato YYYY-MM-DD (por defecto hoy)' },
+        metodoPago: {
+          type: 'string',
+          enum: ['EFECTIVO', 'NEQUI', 'BANCOLOMBIA', 'OTRO'],
+          description: 'Método de pago utilizado para el gasto (por defecto EFECTIVO)'
+        },
       },
       required: ['monto'],
     },
@@ -406,6 +426,16 @@ También se puede usar una categoría personalizada del usuario proporcionando s
     },
   },
   {
+    name: 'obtenerBalancePorMetodo',
+    description: `Obtiene el balance desglosado por método de pago (EFECTIVO, NEQUI, BANCOLOMBIA, OTRO).
+Para cada método muestra: total ingresos, total gastos y balance neto.
+Útil para saber cuánto dinero tiene el usuario en cada medio de pago.`,
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
     name: 'obtenerResumenFinanciero',
     description: `Obtiene un resumen financiero completo del usuario incluyendo:
 - Balance general (ingresos, gastos, ahorros, disponible)
@@ -487,6 +517,12 @@ PRESTAMO: dinero prestado a alguien, los abonos recibidos suman al capital.`,
         montoTotal: { type: 'number', description: 'Monto total de la deuda o prestamo' },
         fechaInicio: { type: 'string', description: 'Fecha de inicio en formato YYYY-MM-DD' },
         fechaLimite: { type: 'string', description: 'Fecha limite de pago en formato YYYY-MM-DD' },
+        categoria: {
+          type: 'string',
+          enum: ['COMIDA', 'PAREJA', 'COMPRAS', 'TRANSPORTE', 'SERVICIOS', 'ENTRETENIMIENTO', 'SALUD', 'EDUCACION', 'INVERSIONES', 'ABONO', 'OTROS'],
+          description: 'Categoria predeterminada de la deuda (usar solo si no se usa categoriaPersonalizadaId)'
+        },
+        categoriaPersonalizadaId: { type: 'string', description: 'ID de una categoria personalizada del usuario (alternativa a categoria)' },
       },
       required: ['tipo', 'descripcion', 'montoTotal'],
     },
@@ -518,6 +554,11 @@ Cuando el monto restante llega a 0, se marca como COMPLETADA automaticamente.`,
         deudaId: { type: 'string', description: 'ID de la deuda o prestamo' },
         monto: { type: 'number', description: 'Monto del abono' },
         descripcion: { type: 'string', description: 'Descripcion del abono (opcional)' },
+        metodoPago: {
+          type: 'string',
+          enum: ['EFECTIVO', 'NEQUI', 'BANCOLOMBIA', 'OTRO'],
+          description: 'Metodo de pago utilizado para el abono (default: EFECTIVO)'
+        },
       },
       required: ['deudaId', 'monto'],
     },
@@ -615,11 +656,13 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
           montoAhorro: validated.montoAhorro,
           categoriaPersonalizadaId: validated.categoriaPersonalizadaId,
           metaId: validated.metaId,
+          metodoPago: validated.metodoPago,
         });
         if (result.success) {
           return `Ingreso registrado exitosamente:
 - Monto: $${validated.monto.toLocaleString()}
 - Categoría: ${validated.categoriaPersonalizadaId ? 'Personalizada' : validated.categoria}
+- Método de pago: ${validated.metodoPago || 'EFECTIVO'}
 - Descripción: ${validated.descripcion || 'Sin descripción'}
 ${validated.montoAhorro ? `- Monto destinado a ahorro: $${validated.montoAhorro.toLocaleString()}` : ''}
 ${validated.metaId ? `- Asociado a meta: ${validated.metaId}` : ''}`;
@@ -670,11 +713,13 @@ ${validated.metaId ? `- Asociado a meta: ${validated.metaId}` : ''}`;
           descripcion: validated.descripcion,
           fecha: validated.fecha,
           categoriaPersonalizadaId: validated.categoriaPersonalizadaId,
+          metodoPago: validated.metodoPago,
         });
         if (result.success) {
           return `Gasto registrado exitosamente:
 - Monto: $${validated.monto.toLocaleString()}
 - Categoría: ${validated.categoriaPersonalizadaId ? 'Personalizada' : validated.categoria}
+- Método de pago: ${validated.metodoPago || 'EFECTIVO'}
 - Descripción: ${validated.descripcion || 'Sin descripción'}`;
         }
         return `Error al registrar gasto: ${result.message}`;
@@ -898,6 +943,18 @@ ${validated.fechaLimite ? `- Fecha límite: ${validated.fechaLimite}` : ''}`;
         return `Error al obtener balance: ${result.message}`;
       }
 
+      case 'obtenerBalancePorMetodo': {
+        const result = await apiClient.obtenerBalancePorMetodo();
+        if (result.success) {
+          const metodos = result.data.metodos;
+          const lineas = metodos.map((m: any) =>
+            `- ${m.metodo}: Ingresos $${m.totalIngresos.toLocaleString()} | Gastos $${m.totalGastos.toLocaleString()} | Balance $${m.balance.toLocaleString()}`
+          ).join('\n');
+          return `Balance por método de pago:\n${lineas}`;
+        }
+        return `Error al obtener balance por método: ${result.message}`;
+      }
+
       // --- RESUMEN Y ANÁLISIS ---
       case 'obtenerResumenFinanciero': {
         // Obtener balance, desglose, metas, resumen de deudas e inversiones
@@ -1087,12 +1144,19 @@ ${validated.fechaLimite ? `- Fecha límite: ${validated.fechaLimite}` : ''}`;
       // --- DEUDAS Y PRÉSTAMOS ---
       case 'crearDeuda': {
         const validated = CrearDeudaSchema.parse(args);
-        const result = await apiClient.crearDeuda(validated);
+        if (!validated.categoria && !validated.categoriaPersonalizadaId) {
+          validated.categoria = 'OTROS';
+        }
+        const result = await apiClient.crearDeuda({
+          ...validated,
+          categoriaPersonalizadaId: validated.categoriaPersonalizadaId,
+        });
         if (result.success) {
           const tipoLabel = validated.tipo === 'DEUDA' ? 'Deuda' : 'Prestamo';
           return `${tipoLabel} registrada exitosamente:
 - Monto: $${validated.montoTotal.toLocaleString()}
 - Descripcion: ${validated.descripcion}
+- Categoria: ${validated.categoriaPersonalizadaId ? 'Personalizada' : validated.categoria}
 ${validated.entidad ? `- Entidad: ${validated.entidad}` : ''}
 ${validated.fechaLimite ? `- Fecha limite: ${validated.fechaLimite}` : ''}`;
         }
@@ -1103,7 +1167,7 @@ ${validated.fechaLimite ? `- Fecha limite: ${validated.fechaLimite}` : ''}`;
         const result = await apiClient.obtenerDeudasPorTipo('DEUDA');
         if (result.success && result.data.length > 0) {
           const lista = result.data.map((d: any) =>
-            `- ${d.descripcion}${d.entidad ? ` (${d.entidad})` : ''}: $${d.montoAbonado?.toLocaleString() || 0}/$${d.montoTotal.toLocaleString()} — ${d.porcentajeAvance?.toFixed(1) || 0}% [${d.estado}] — ID: ${d.id}`
+            `- ${d.descripcion}${d.entidad ? ` (${d.entidad})` : ''}${d.categoriaDescripcion ? ` [${d.categoriaDescripcion}]` : ''}: $${d.montoAbonado?.toLocaleString() || 0}/$${d.montoTotal.toLocaleString()} — ${d.porcentajeAvance?.toFixed(1) || 0}% [${d.estado}] — ID: ${d.id}`
           ).join('\n');
           return `Deudas registradas:\n${lista}`;
         }
@@ -1114,7 +1178,7 @@ ${validated.fechaLimite ? `- Fecha limite: ${validated.fechaLimite}` : ''}`;
         const result = await apiClient.obtenerDeudasPorTipo('PRESTAMO');
         if (result.success && result.data.length > 0) {
           const lista = result.data.map((d: any) =>
-            `- ${d.descripcion}${d.entidad ? ` (a ${d.entidad})` : ''}: $${d.montoAbonado?.toLocaleString() || 0}/$${d.montoTotal.toLocaleString()} — ${d.porcentajeAvance?.toFixed(1) || 0}% [${d.estado}] — ID: ${d.id}`
+            `- ${d.descripcion}${d.entidad ? ` (a ${d.entidad})` : ''}${d.categoriaDescripcion ? ` [${d.categoriaDescripcion}]` : ''}: $${d.montoAbonado?.toLocaleString() || 0}/$${d.montoTotal.toLocaleString()} — ${d.porcentajeAvance?.toFixed(1) || 0}% [${d.estado}] — ID: ${d.id}`
           ).join('\n');
           return `Prestamos registrados:\n${lista}`;
         }
@@ -1126,6 +1190,7 @@ ${validated.fechaLimite ? `- Fecha limite: ${validated.fechaLimite}` : ''}`;
         const result = await apiClient.abonarDeuda(validated.deudaId, {
           monto: validated.monto,
           descripcion: validated.descripcion,
+          metodoPago: validated.metodoPago,
         });
         if (result.success) {
           return `Abono registrado: $${validated.monto.toLocaleString()} aplicado correctamente.`;
