@@ -414,6 +414,50 @@ export class FinanzAppApiClient {
     return response.data;
   }
 
+  // ==================== AUTENTICACION WHATSAPP ====================
+
+  async verificarEstadoWhatsapp(telefono: string): Promise<ApiResponse<any>> {
+    const response = await this.client.get<ApiResponse<any>>('/whatsapp/auth/estado', {
+      params: { numeroWhatsapp: telefono },
+    });
+    return response.data;
+  }
+
+  async obtenerTokenWhatsapp(telefono: string): Promise<ApiResponse<any>> {
+    const response = await this.client.get<ApiResponse<any>>('/whatsapp/auth/obtener-token', {
+      params: { numeroWhatsapp: telefono },
+    });
+    return response.data;
+  }
+
+  async registrarUsuarioWhatsapp(telefono: string, nombre: string, email: string, password: string): Promise<ApiResponse<any>> {
+    const response = await this.client.post<ApiResponse<any>>('/whatsapp/auth/registro', null, {
+      params: { numeroWhatsapp: telefono, nombre, email, password },
+    });
+    return response.data;
+  }
+
+  async solicitarCodigoWhatsapp(telefono: string): Promise<ApiResponse<any>> {
+    const response = await this.client.post<ApiResponse<any>>('/whatsapp/auth/solicitar-codigo', null, {
+      params: { numeroWhatsapp: telefono },
+    });
+    return response.data;
+  }
+
+  async verificarCodigoWhatsapp(telefono: string, codigo: string): Promise<ApiResponse<any>> {
+    const response = await this.client.post<ApiResponse<any>>('/whatsapp/auth/verificar-codigo', null, {
+      params: { numeroWhatsapp: telefono, codigo },
+    });
+    return response.data;
+  }
+
+  async generarLinkOAuthWhatsapp(telefono: string): Promise<ApiResponse<any>> {
+    const response = await this.client.post<ApiResponse<any>>('/whatsapp/auth/generar-link', null, {
+      params: { numeroWhatsapp: telefono },
+    });
+    return response.data;
+  }
+
   // ==================== CATEGORÍAS PERSONALIZADAS ====================
 
   async getCategorias(endpoint: string): Promise<ApiResponse<any[]>> {

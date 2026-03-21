@@ -8,8 +8,10 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "start:http": "MCP_TRANSPORT=http node dist/http-server.js",
+    "start:sse": "node dist/sse-server.js",
     "dev": "tsx src/index.ts",
     "dev:http": "MCP_TRANSPORT=http tsx src/http-server.ts",
+    "dev:sse": "tsx src/sse-server.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "inspector": "npx @anthropics/mcp-inspector dist/index.js"

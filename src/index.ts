@@ -180,6 +180,31 @@ const EditarDeudaSchema = z.object({
   fechaLimite: z.string().optional().describe('Nueva fecha límite en formato YYYY-MM-DD'),
 });
 
+// Schemas de autenticacion WhatsApp
+const VerificarEstadoAuthSchema = z.object({
+  telefonoWhatsapp: z.string().min(1, 'El telefono es requerido'),
+});
+
+const RegistrarUsuarioSchema = z.object({
+  telefonoWhatsapp: z.string().min(1, 'El telefono es requerido'),
+  nombre: z.string().min(1, 'El nombre es requerido'),
+  email: z.string().email('Email invalido'),
+  password: z.string().min(6, 'La password debe tener al menos 6 caracteres'),
+});
+
+const SolicitarCodigoSchema = z.object({
+  telefonoWhatsapp: z.string().min(1, 'El telefono es requerido'),
+});
+
+const VerificarCodigoSchema = z.object({
+  telefonoWhatsapp: z.string().min(1, 'El telefono es requerido'),
+  codigo: z.string().length(6, 'El codigo debe tener 6 digitos'),
+});
+
+const GenerarLinkOAuthSchema = z.object({
+  telefonoWhatsapp: z.string().min(1, 'El telefono es requerido'),
+});
+
 // ==================== DEFINICIÓN DE HERRAMIENTAS ====================
 
 const tools: Tool[] = [
@@ -813,11 +838,71 @@ Cuando el monto restante llega a 0, se marca como COMPLETADA automaticamente.`,
       required: ['inversionId', 'retornoReal'],
     },
   },
+  // ==================== AUTENTICACION WHATSAPP ====================
+  {
+    name: 'verificarEstadoAuth',
+    description: 'Verifica el estado de autenticacion de un usuario de WhatsApp. DEBE llamarse SIEMPRE antes de cualquier operacion financiera. Si la sesion esta activa, configura automaticamente la autenticacion para las demas herramientas.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        telefonoWhatsapp: { type: 'string', description: 'Numero de WhatsApp del usuario (ej: 573167324940)' },
+      },
+      required: ['telefonoWhatsapp'],
+    },
+  },
+  {
+    name: 'registrarUsuario',
+    description: 'Registra un nuevo usuario desde WhatsApp. Crea la cuenta y genera un codigo OTP de verificacion.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        telefonoWhatsapp: { type: 'string', description: 'Numero de WhatsApp del usuario' },
+        nombre: { type: 'string', description: 'Nombre completo del usuario' },
+        email: { type: 'string', description: 'Email del usuario' },
+        password: { type: 'string', description: 'Password para la cuenta' },
+      },
+      required: ['telefonoWhatsapp', 'nombre', 'email', 'password'],
+    },
+  },
+  {
+    name: 'solicitarCodigo',
+    description: 'Solicita un codigo OTP de verificacion para un usuario ya registrado.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        telefonoWhatsapp: { type: 'string', description: 'Numero de WhatsApp del usuario' },
+      },
+      required: ['telefonoWhatsapp'],
+    },
+  },
+  {
+    name: 'verificarCodigo',
+    description: 'Verifica el codigo OTP ingresado por el usuario. Si es correcto, activa la sesion y configura la autenticacion automaticamente.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        telefonoWhatsapp: { type: 'string', description: 'Numero de WhatsApp del usuario' },
+        codigo: { type: 'string', description: 'Codigo OTP de 6 digitos' },
+      },
+      required: ['telefonoWhatsapp', 'codigo'],
+    },
+  },
+  {
+    name: 'generarLinkOAuth',
+    description: 'Genera un enlace de autenticacion OAuth para que el usuario se autentique desde el navegador web.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        telefonoWhatsapp: { type: 'string', description: 'Numero de WhatsApp del usuario' },
+      },
+      required: ['telefonoWhatsapp'],
+    },
+  },
 ];
 
 // ==================== MANEJADORES DE HERRAMIENTAS ====================
 
-async function handleToolCall(name: string, args: Record<string, unknown>): Promise<string> {
+async function handleToolCall(name: string, args: Record<string, unknown>, client: FinanzAppApiClient = apiClient): Promise<string> {
   try {
     switch (name) {
       // --- INGRESOS ---
@@ -826,7 +911,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
         if (!validated.categoria && !validated.categoriaPersonalizadaId) {
           validated.categoria = 'OTROS';
         }
-        const result = await apiClient.crearIngreso({
+        const result = await client.crearIngreso({
           monto: validated.monto,
           categoria: validated.categoria || 'OTROS',
           descripcion: validated.descripcion,
@@ -849,7 +934,7 @@ ${validated.metaId ? `- Asociado a meta: ${validated.metaId}` : ''}`;
       }
 
       case 'obtenerIngresos': {
-        const result = await apiClient.obtenerIngresos();
+        const result = await client.obtenerIngresos();
         if (result.success && result.data.length > 0) {
           const ingresos = result.data.map((i: any) =>
             `- ${i.fecha}: $${i.monto.toLocaleString()} (${i.categoria}) ${i.descripcion ? `- ${i.descripcion}` : ''}`
@@ -861,7 +946,7 @@ ${validated.metaId ? `- Asociado a meta: ${validated.metaId}` : ''}`;
 
       case 'obtenerIngresosPorPeriodo': {
         const validated = ConsultarPeriodoSchema.parse(args);
-        const result = await apiClient.obtenerIngresosPorPeriodo(validated.fechaInicio, validated.fechaFin);
+        const result = await client.obtenerIngresosPorPeriodo(validated.fechaInicio, validated.fechaFin);
         if (result.success && result.data.length > 0) {
           const total = result.data.reduce((sum: number, i: any) => sum + i.monto, 0);
           const ingresos = result.data.map((i: any) =>
@@ -873,7 +958,7 @@ ${validated.metaId ? `- Asociado a meta: ${validated.metaId}` : ''}`;
       }
 
       case 'obtenerTotalIngresos': {
-        const result = await apiClient.obtenerTotalIngresos();
+        const result = await client.obtenerTotalIngresos();
         return result.success
           ? `Total de ingresos: $${result.data.toLocaleString()}`
           : `Error al obtener total: ${result.message}`;
@@ -882,7 +967,7 @@ ${validated.metaId ? `- Asociado a meta: ${validated.metaId}` : ''}`;
       case 'editarIngreso': {
         const validatedEdit = EditarIngresoSchema.parse(args);
         const { id, ...datos } = validatedEdit;
-        const result = await apiClient.actualizarIngreso(id, datos);
+        const result = await client.actualizarIngreso(id, datos);
         return result.success
           ? `Ingreso actualizado exitosamente.`
           : `Error al actualizar ingreso: ${result.message}`;
@@ -890,7 +975,7 @@ ${validated.metaId ? `- Asociado a meta: ${validated.metaId}` : ''}`;
 
       case 'eliminarIngreso': {
         const validatedDel = EliminarRegistroSchema.parse(args);
-        const result = await apiClient.eliminarIngreso(validatedDel.id);
+        const result = await client.eliminarIngreso(validatedDel.id);
         return result.success
           ? `Ingreso eliminado exitosamente.`
           : `Error al eliminar ingreso: ${result.message}`;
@@ -902,7 +987,7 @@ ${validated.metaId ? `- Asociado a meta: ${validated.metaId}` : ''}`;
         if (!validated.categoria && !validated.categoriaPersonalizadaId) {
           validated.categoria = 'OTROS';
         }
-        const result = await apiClient.crearGasto({
+        const result = await client.crearGasto({
           monto: validated.monto,
           categoria: validated.categoria || 'OTROS',
           descripcion: validated.descripcion,
@@ -921,7 +1006,7 @@ ${validated.metaId ? `- Asociado a meta: ${validated.metaId}` : ''}`;
       }
 
       case 'obtenerGastos': {
-        const result = await apiClient.obtenerGastos();
+        const result = await client.obtenerGastos();
         if (result.success && result.data.length > 0) {
           const gastos = result.data.map((g: any) =>
             `- ${g.fecha}: $${g.monto.toLocaleString()} (${g.categoria}) ${g.descripcion ? `- ${g.descripcion}` : ''}`
@@ -933,7 +1018,7 @@ ${validated.metaId ? `- Asociado a meta: ${validated.metaId}` : ''}`;
 
       case 'obtenerGastosPorPeriodo': {
         const validated = ConsultarPeriodoSchema.parse(args);
-        const result = await apiClient.obtenerGastosPorPeriodo(validated.fechaInicio, validated.fechaFin);
+        const result = await client.obtenerGastosPorPeriodo(validated.fechaInicio, validated.fechaFin);
         if (result.success && result.data.length > 0) {
           const total = result.data.reduce((sum: number, g: any) => sum + g.monto, 0);
           const gastos = result.data.map((g: any) =>
@@ -946,7 +1031,7 @@ ${validated.metaId ? `- Asociado a meta: ${validated.metaId}` : ''}`;
 
       case 'obtenerGastosPorCategoria': {
         const validated = ConsultarCategoriaSchema.parse(args);
-        const result = await apiClient.obtenerGastosPorCategoria(validated.categoria);
+        const result = await client.obtenerGastosPorCategoria(validated.categoria);
         if (result.success && result.data.length > 0) {
           const total = result.data.reduce((sum: number, g: any) => sum + g.monto, 0);
           const gastos = result.data.map((g: any) =>
@@ -958,14 +1043,14 @@ ${validated.metaId ? `- Asociado a meta: ${validated.metaId}` : ''}`;
       }
 
       case 'obtenerTotalGastos': {
-        const result = await apiClient.obtenerTotalGastos();
+        const result = await client.obtenerTotalGastos();
         return result.success
           ? `Total de gastos: $${result.data.toLocaleString()}`
           : `Error al obtener total: ${result.message}`;
       }
 
       case 'obtenerDesgloseGastos': {
-        const result = await apiClient.obtenerDesgloseGastos();
+        const result = await client.obtenerDesgloseGastos();
         if (result.success && Object.keys(result.data).length > 0) {
           const desglose = Object.entries(result.data)
             .map(([cat, monto]) => `- ${cat}: $${(monto as number).toLocaleString()}`)
@@ -978,7 +1063,7 @@ ${validated.metaId ? `- Asociado a meta: ${validated.metaId}` : ''}`;
 
       case 'obtenerDesgloseGastosPorPeriodo': {
         const validated = ConsultarPeriodoSchema.parse(args);
-        const result = await apiClient.obtenerDesgloseGastosPorPeriodo(validated.fechaInicio, validated.fechaFin);
+        const result = await client.obtenerDesgloseGastosPorPeriodo(validated.fechaInicio, validated.fechaFin);
         if (result.success && Object.keys(result.data).length > 0) {
           const desglose = Object.entries(result.data)
             .map(([cat, monto]) => `- ${cat}: $${(monto as number).toLocaleString()}`)
@@ -992,7 +1077,7 @@ ${validated.metaId ? `- Asociado a meta: ${validated.metaId}` : ''}`;
       case 'editarEgreso': {
         const validatedEditGasto = EditarGastoSchema.parse(args);
         const { id, ...datos } = validatedEditGasto;
-        const result = await apiClient.actualizarGasto(id, datos);
+        const result = await client.actualizarGasto(id, datos);
         return result.success
           ? `Gasto actualizado exitosamente.`
           : `Error al actualizar gasto: ${result.message}`;
@@ -1000,7 +1085,7 @@ ${validated.metaId ? `- Asociado a meta: ${validated.metaId}` : ''}`;
 
       case 'eliminarEgreso': {
         const validatedDelGasto = EliminarRegistroSchema.parse(args);
-        const result = await apiClient.eliminarGasto(validatedDelGasto.id);
+        const result = await client.eliminarGasto(validatedDelGasto.id);
         return result.success
           ? `Gasto eliminado exitosamente.`
           : `Error al eliminar gasto: ${result.message}`;
@@ -1009,7 +1094,7 @@ ${validated.metaId ? `- Asociado a meta: ${validated.metaId}` : ''}`;
       // --- AHORROS ---
       case 'crearAhorro': {
         const validated = CrearAhorroSchema.parse(args);
-        const result = await apiClient.crearAhorro({
+        const result = await client.crearAhorro({
           monto: validated.monto,
           descripcion: validated.descripcion,
           fecha: validated.fecha,
@@ -1025,7 +1110,7 @@ ${validated.metaId ? '- Asociado a una meta financiera' : ''}`;
       }
 
       case 'obtenerAhorros': {
-        const result = await apiClient.obtenerAhorros();
+        const result = await client.obtenerAhorros();
         if (result.success && result.data.length > 0) {
           const ahorros = result.data.map((a: any) =>
             `- ${a.fecha}: $${a.monto.toLocaleString()} ${a.descripcion ? `- ${a.descripcion}` : ''}`
@@ -1037,7 +1122,7 @@ ${validated.metaId ? '- Asociado a una meta financiera' : ''}`;
 
       case 'obtenerAhorrosPorPeriodo': {
         const validated = ConsultarPeriodoSchema.parse(args);
-        const result = await apiClient.obtenerAhorrosPorPeriodo(validated.fechaInicio, validated.fechaFin);
+        const result = await client.obtenerAhorrosPorPeriodo(validated.fechaInicio, validated.fechaFin);
         if (result.success && result.data.length > 0) {
           const total = result.data.reduce((sum: number, a: any) => sum + a.monto, 0);
           const ahorros = result.data.map((a: any) =>
@@ -1049,7 +1134,7 @@ ${validated.metaId ? '- Asociado a una meta financiera' : ''}`;
       }
 
       case 'obtenerTotalAhorros': {
-        const result = await apiClient.obtenerTotalAhorros();
+        const result = await client.obtenerTotalAhorros();
         return result.success
           ? `Total de ahorros: $${result.data.toLocaleString()}`
           : `Error al obtener total: ${result.message}`;
@@ -1058,7 +1143,7 @@ ${validated.metaId ? '- Asociado a una meta financiera' : ''}`;
       case 'editarAhorro': {
         const validatedEditAhorro = EditarAhorroSchema.parse(args);
         const { id, ...datos } = validatedEditAhorro;
-        const result = await apiClient.actualizarAhorro(id, datos);
+        const result = await client.actualizarAhorro(id, datos);
         return result.success
           ? `Ahorro actualizado exitosamente.`
           : `Error al actualizar ahorro: ${result.message}`;
@@ -1066,7 +1151,7 @@ ${validated.metaId ? '- Asociado a una meta financiera' : ''}`;
 
       case 'eliminarAhorro': {
         const validatedDelAhorro = EliminarRegistroSchema.parse(args);
-        const result = await apiClient.eliminarAhorro(validatedDelAhorro.id);
+        const result = await client.eliminarAhorro(validatedDelAhorro.id);
         return result.success
           ? `Ahorro eliminado exitosamente.`
           : `Error al eliminar ahorro: ${result.message}`;
@@ -1075,7 +1160,7 @@ ${validated.metaId ? '- Asociado a una meta financiera' : ''}`;
       // --- METAS ---
       case 'crearMeta': {
         const validated = CrearMetaSchema.parse(args);
-        const result = await apiClient.crearMeta({
+        const result = await client.crearMeta({
           nombre: validated.nombre,
           descripcion: validated.descripcion,
           montoObjetivo: validated.montoObjetivo,
@@ -1092,7 +1177,7 @@ ${validated.fechaLimite ? `- Fecha límite: ${validated.fechaLimite}` : ''}`;
       }
 
       case 'obtenerMetas': {
-        const result = await apiClient.obtenerMetas();
+        const result = await client.obtenerMetas();
         if (result.success && result.data.length > 0) {
           const metas = result.data.map((m: any) =>
             `- ${m.nombre}: $${m.montoActual?.toLocaleString() || 0}/$${m.montoObjetivo.toLocaleString()} (${m.porcentajeAvance?.toFixed(1) || 0}%) - Estado: ${m.estado}`
@@ -1103,7 +1188,7 @@ ${validated.fechaLimite ? `- Fecha límite: ${validated.fechaLimite}` : ''}`;
       }
 
       case 'obtenerMetasActivas': {
-        const result = await apiClient.obtenerMetasPorEstado('ACTIVA');
+        const result = await client.obtenerMetasPorEstado('ACTIVA');
         if (result.success && result.data.length > 0) {
           const metas = result.data.map((m: any) =>
             `- ${m.nombre}: $${m.montoActual?.toLocaleString() || 0}/$${m.montoObjetivo.toLocaleString()} (${m.porcentajeAvance?.toFixed(1) || 0}%) - Restante: $${m.montoRestante?.toLocaleString() || m.montoObjetivo}`
@@ -1115,7 +1200,7 @@ ${validated.fechaLimite ? `- Fecha límite: ${validated.fechaLimite}` : ''}`;
 
       case 'registrarProgresoMeta': {
         const validated = RegistrarProgresoMetaSchema.parse(args);
-        const result = await apiClient.registrarProgresoMeta(validated.metaId, validated.monto);
+        const result = await client.registrarProgresoMeta(validated.metaId, validated.monto);
         if (result.success) {
           return `Progreso registrado: $${validated.monto.toLocaleString()} abonados a la meta.`;
         }
@@ -1124,7 +1209,7 @@ ${validated.fechaLimite ? `- Fecha límite: ${validated.fechaLimite}` : ''}`;
 
       case 'cambiarEstadoMeta': {
         const validated = CambiarEstadoMetaSchema.parse(args);
-        const result = await apiClient.cambiarEstadoMeta(validated.metaId, validated.estado);
+        const result = await client.cambiarEstadoMeta(validated.metaId, validated.estado);
         if (result.success) {
           return `Estado de la meta actualizado a ${validated.estado} correctamente.`;
         }
@@ -1133,7 +1218,7 @@ ${validated.fechaLimite ? `- Fecha límite: ${validated.fechaLimite}` : ''}`;
 
       case 'obtenerAhorrosPorMeta': {
         const validated = ObtenerAhorrosPorMetaSchema.parse(args);
-        const result = await apiClient.obtenerAhorrosPorMeta(validated.metaId);
+        const result = await client.obtenerAhorrosPorMeta(validated.metaId);
         if (result.success && result.data.length > 0) {
           const total = result.data.reduce((sum: number, a: any) => sum + a.monto, 0);
           const ahorros = result.data.map((a: any) =>
@@ -1147,7 +1232,7 @@ ${validated.fechaLimite ? `- Fecha límite: ${validated.fechaLimite}` : ''}`;
       case 'editarMeta': {
         const validatedEditMeta = EditarMetaSchema.parse(args);
         const { id, ...datos } = validatedEditMeta;
-        const result = await apiClient.actualizarMeta(id, datos);
+        const result = await client.actualizarMeta(id, datos);
         return result.success
           ? `Meta actualizada exitosamente.`
           : `Error al actualizar meta: ${result.message}`;
@@ -1155,7 +1240,7 @@ ${validated.fechaLimite ? `- Fecha límite: ${validated.fechaLimite}` : ''}`;
 
       case 'eliminarMeta': {
         const validatedDelMeta = EliminarRegistroSchema.parse(args);
-        const result = await apiClient.eliminarMeta(validatedDelMeta.id);
+        const result = await client.eliminarMeta(validatedDelMeta.id);
         return result.success
           ? `Meta eliminada exitosamente.`
           : `Error al eliminar meta: ${result.message}`;
@@ -1163,7 +1248,7 @@ ${validated.fechaLimite ? `- Fecha límite: ${validated.fechaLimite}` : ''}`;
 
       // --- BALANCE ---
       case 'obtenerBalance': {
-        const result = await apiClient.obtenerBalance();
+        const result = await client.obtenerBalance();
         if (result.success) {
           const b = result.data;
           return `Balance general:
@@ -1177,7 +1262,7 @@ ${validated.fechaLimite ? `- Fecha límite: ${validated.fechaLimite}` : ''}`;
 
       case 'obtenerBalancePorPeriodo': {
         const validated = ConsultarPeriodoSchema.parse(args);
-        const result = await apiClient.obtenerBalancePorPeriodo(validated.fechaInicio, validated.fechaFin);
+        const result = await client.obtenerBalancePorPeriodo(validated.fechaInicio, validated.fechaFin);
         if (result.success) {
           const b = result.data;
           return `Balance (${validated.fechaInicio} a ${validated.fechaFin}):
@@ -1190,7 +1275,7 @@ ${validated.fechaLimite ? `- Fecha límite: ${validated.fechaLimite}` : ''}`;
       }
 
       case 'obtenerBalancePorMetodo': {
-        const result = await apiClient.obtenerBalancePorMetodo();
+        const result = await client.obtenerBalancePorMetodo();
         if (result.success) {
           const metodos = result.data.metodos;
           const lineas = metodos.map((m: any) =>
@@ -1205,11 +1290,11 @@ ${validated.fechaLimite ? `- Fecha límite: ${validated.fechaLimite}` : ''}`;
       case 'obtenerResumenFinanciero': {
         // Obtener balance, desglose, metas, resumen de deudas e inversiones
         const [balanceRes, desgloseRes, metasRes, deudasRes, inversionesRes] = await Promise.all([
-          apiClient.obtenerBalance(),
-          apiClient.obtenerDesgloseGastos(),
-          apiClient.obtenerMetasPorEstado('ACTIVA'),
-          apiClient.obtenerResumenDeudas(),
-          apiClient.obtenerInversiones('ACTIVA'),
+          client.obtenerBalance(),
+          client.obtenerDesgloseGastos(),
+          client.obtenerMetasPorEstado('ACTIVA'),
+          client.obtenerResumenDeudas(),
+          client.obtenerInversiones('ACTIVA'),
         ]);
 
         let resumen = '📊 RESUMEN FINANCIERO\n\n';
@@ -1263,9 +1348,9 @@ ${validated.fechaLimite ? `- Fecha límite: ${validated.fechaLimite}` : ''}`;
         const fechaFin = (args.fechaFin as string) || getToday();
 
         const [balanceRes, desgloseRes, metasRes] = await Promise.all([
-          apiClient.obtenerBalancePorPeriodo(fechaInicio, fechaFin),
-          apiClient.obtenerDesgloseGastosPorPeriodo(fechaInicio, fechaFin),
-          apiClient.obtenerMetasPorEstado('ACTIVA'),
+          client.obtenerBalancePorPeriodo(fechaInicio, fechaFin),
+          client.obtenerDesgloseGastosPorPeriodo(fechaInicio, fechaFin),
+          client.obtenerMetasPorEstado('ACTIVA'),
         ]);
 
         let analisis = `📊 ANÁLISIS FINANCIERO (${fechaInicio} a ${fechaFin})\n\n`;
@@ -1323,7 +1408,7 @@ ${validated.fechaLimite ? `- Fecha límite: ${validated.fechaLimite}` : ''}`;
         const registros: string[] = [];
 
         if (tipo === 'TODOS' || tipo === 'INGRESOS') {
-          const result = await apiClient.obtenerIngresosPorPeriodo(fechaInicio, fechaFin);
+          const result = await client.obtenerIngresosPorPeriodo(fechaInicio, fechaFin);
           if (result.success && result.data.length > 0) {
             result.data.forEach((i: any) => {
               registros.push(`[INGRESO] ${i.fecha}: +$${i.monto.toLocaleString()} (${i.categoria})${i.descripcion ? ` — ${i.descripcion}` : ''}`);
@@ -1332,7 +1417,7 @@ ${validated.fechaLimite ? `- Fecha límite: ${validated.fechaLimite}` : ''}`;
         }
 
         if (tipo === 'TODOS' || tipo === 'GASTOS') {
-          const result = await apiClient.obtenerGastosPorPeriodo(fechaInicio, fechaFin);
+          const result = await client.obtenerGastosPorPeriodo(fechaInicio, fechaFin);
           if (result.success && result.data.length > 0) {
             result.data.forEach((g: any) => {
               registros.push(`[GASTO] ${g.fecha}: -$${g.monto.toLocaleString()} (${g.categoria})${g.descripcion ? ` — ${g.descripcion}` : ''}`);
@@ -1341,7 +1426,7 @@ ${validated.fechaLimite ? `- Fecha límite: ${validated.fechaLimite}` : ''}`;
         }
 
         if (tipo === 'TODOS' || tipo === 'AHORROS') {
-          const result = await apiClient.obtenerAhorrosPorPeriodo(fechaInicio, fechaFin);
+          const result = await client.obtenerAhorrosPorPeriodo(fechaInicio, fechaFin);
           if (result.success && result.data.length > 0) {
             result.data.forEach((a: any) => {
               registros.push(`[AHORRO] ${a.fecha}: $${a.monto.toLocaleString()}${a.descripcion ? ` — ${a.descripcion}` : ''}`);
@@ -1350,7 +1435,7 @@ ${validated.fechaLimite ? `- Fecha límite: ${validated.fechaLimite}` : ''}`;
         }
 
         if (tipo === 'TODOS' || tipo === 'INVERSIONES') {
-          const result = await apiClient.obtenerInversiones();
+          const result = await client.obtenerInversiones();
           if (result.success && result.data.length > 0) {
             result.data
               .filter((i: any) => i.fechaInversion >= fechaInicio && i.fechaInversion <= fechaFin)
@@ -1375,7 +1460,7 @@ ${validated.fechaLimite ? `- Fecha límite: ${validated.fechaLimite}` : ''}`;
       case 'obtenerCategoriasPersonalizadas': {
         const tipo = args.tipo as string | undefined;
         const endpoint = tipo ? `/categorias/tipo/${tipo}` : '/categorias';
-        const result = await apiClient.getCategorias(endpoint);
+        const result = await client.getCategorias(endpoint);
         if (result.success && result.data.length > 0) {
           const categorias = result.data.map((c: any) =>
             `- ${c.nombre} (${c.tipo})${c.color ? ` [${c.color}]` : ''} — ID: ${c.id}`
@@ -1393,7 +1478,7 @@ ${validated.fechaLimite ? `- Fecha límite: ${validated.fechaLimite}` : ''}`;
         if (!validated.categoria && !validated.categoriaPersonalizadaId) {
           validated.categoria = 'OTROS';
         }
-        const result = await apiClient.crearDeuda({
+        const result = await client.crearDeuda({
           ...validated,
           categoriaPersonalizadaId: validated.categoriaPersonalizadaId,
         });
@@ -1410,7 +1495,7 @@ ${validated.fechaLimite ? `- Fecha limite: ${validated.fechaLimite}` : ''}`;
       }
 
       case 'obtenerDeudas': {
-        const result = await apiClient.obtenerDeudasPorTipo('DEUDA');
+        const result = await client.obtenerDeudasPorTipo('DEUDA');
         if (result.success && result.data.length > 0) {
           const lista = result.data.map((d: any) =>
             `- ${d.descripcion}${d.entidad ? ` (${d.entidad})` : ''}${d.categoriaDescripcion ? ` [${d.categoriaDescripcion}]` : ''}: $${d.montoAbonado?.toLocaleString() || 0}/$${d.montoTotal.toLocaleString()} — ${d.porcentajeAvance?.toFixed(1) || 0}% [${d.estado}] — ID: ${d.id}`
@@ -1421,7 +1506,7 @@ ${validated.fechaLimite ? `- Fecha limite: ${validated.fechaLimite}` : ''}`;
       }
 
       case 'obtenerPrestamos': {
-        const result = await apiClient.obtenerDeudasPorTipo('PRESTAMO');
+        const result = await client.obtenerDeudasPorTipo('PRESTAMO');
         if (result.success && result.data.length > 0) {
           const lista = result.data.map((d: any) =>
             `- ${d.descripcion}${d.entidad ? ` (a ${d.entidad})` : ''}${d.categoriaDescripcion ? ` [${d.categoriaDescripcion}]` : ''}: $${d.montoAbonado?.toLocaleString() || 0}/$${d.montoTotal.toLocaleString()} — ${d.porcentajeAvance?.toFixed(1) || 0}% [${d.estado}] — ID: ${d.id}`
@@ -1433,7 +1518,7 @@ ${validated.fechaLimite ? `- Fecha limite: ${validated.fechaLimite}` : ''}`;
 
       case 'abonarDeuda': {
         const validated = AbonarDeudaSchema.parse(args);
-        const result = await apiClient.abonarDeuda(validated.deudaId, {
+        const result = await client.abonarDeuda(validated.deudaId, {
           monto: validated.monto,
           descripcion: validated.descripcion,
           metodoPago: validated.metodoPago,
@@ -1445,7 +1530,7 @@ ${validated.fechaLimite ? `- Fecha limite: ${validated.fechaLimite}` : ''}`;
       }
 
       case 'obtenerResumenDeudas': {
-        const result = await apiClient.obtenerResumenDeudas();
+        const result = await client.obtenerResumenDeudas();
         if (result.success) {
           const r = result.data;
           return `Resumen de deudas y prestamos:
@@ -1459,7 +1544,7 @@ ${validated.fechaLimite ? `- Fecha limite: ${validated.fechaLimite}` : ''}`;
       case 'obtenerAbonosDeuda': {
         const deudaId = args.deudaId as string;
         if (!deudaId) return 'Error: Se requiere el ID de la deuda.';
-        const result = await apiClient.obtenerAbonosDeuda(deudaId);
+        const result = await client.obtenerAbonosDeuda(deudaId);
         if (result.success && result.data.length > 0) {
           const abonos = result.data.map((a: any) =>
             `- ${a.fechaAbono}: $${a.monto.toLocaleString()}${a.descripcion ? ` — ${a.descripcion}` : ''}`
@@ -1471,7 +1556,7 @@ ${validated.fechaLimite ? `- Fecha limite: ${validated.fechaLimite}` : ''}`;
 
       case 'obtenerDeudasPorEstado': {
         const validated = ConsultarEstadoDeudaSchema.parse(args);
-        const result = await apiClient.obtenerDeudasPorEstado(validated.estado);
+        const result = await client.obtenerDeudasPorEstado(validated.estado);
         if (result.success && result.data.length > 0) {
           const lista = result.data.map((d: any) =>
             `- [${d.tipo}] ${d.descripcion}${d.entidad ? ` (${d.entidad})` : ''}: $${d.montoAbonado?.toLocaleString() || 0}/$${d.montoTotal.toLocaleString()} — ID: ${d.id}`
@@ -1484,7 +1569,7 @@ ${validated.fechaLimite ? `- Fecha limite: ${validated.fechaLimite}` : ''}`;
       case 'editarDeuda': {
         const validatedEditDeuda = EditarDeudaSchema.parse(args);
         const { id, ...datos } = validatedEditDeuda;
-        const result = await apiClient.actualizarDeuda(id, datos);
+        const result = await client.actualizarDeuda(id, datos);
         return result.success
           ? `Deuda actualizada exitosamente.`
           : `Error al actualizar deuda: ${result.message}`;
@@ -1492,7 +1577,7 @@ ${validated.fechaLimite ? `- Fecha limite: ${validated.fechaLimite}` : ''}`;
 
       case 'eliminarDeuda': {
         const validatedDelDeuda = EliminarRegistroSchema.parse(args);
-        const result = await apiClient.eliminarDeuda(validatedDelDeuda.id);
+        const result = await client.eliminarDeuda(validatedDelDeuda.id);
         return result.success
           ? `Deuda eliminada exitosamente.`
           : `Error al eliminar deuda: ${result.message}`;
@@ -1501,7 +1586,7 @@ ${validated.fechaLimite ? `- Fecha limite: ${validated.fechaLimite}` : ''}`;
       // --- INVERSIONES ---
       case 'crearInversion': {
         const validated = CrearInversionSchema.parse(args);
-        const result = await apiClient.crearInversion({
+        const result = await client.crearInversion({
           nombre: validated.nombre,
           descripcion: validated.descripcion,
           monto: validated.monto,
@@ -1521,7 +1606,7 @@ ${validated.retornoEsperado ? `- Retorno esperado: $${validated.retornoEsperado.
 
       case 'obtenerInversiones': {
         const estado = args.estado as string | undefined;
-        const result = await apiClient.obtenerInversiones(estado);
+        const result = await client.obtenerInversiones(estado);
         if (result.success && result.data.length > 0) {
           const inversiones = result.data.map((inv: any) => {
             const ganancia = inv.ganancia != null
@@ -1536,7 +1621,7 @@ ${validated.retornoEsperado ? `- Retorno esperado: $${validated.retornoEsperado.
 
       case 'registrarRetornoInversion': {
         const validated = RegistrarRetornoInversionSchema.parse(args);
-        const result = await apiClient.registrarRetornoInversion(validated.inversionId, {
+        const result = await client.registrarRetornoInversion(validated.inversionId, {
           retornoReal: validated.retornoReal,
           fechaRetorno: validated.fechaRetorno,
         });
@@ -1559,6 +1644,64 @@ ${resGanancia ? `- ${resGanancia}` : ''}
         return `Error al registrar retorno: ${result.message}`;
       }
 
+      // --- AUTENTICACION WHATSAPP ---
+      case 'verificarEstadoAuth': {
+        const validated = VerificarEstadoAuthSchema.parse(args);
+        const estadoResult = await client.verificarEstadoWhatsapp(validated.telefonoWhatsapp);
+        if (estadoResult.success && estadoResult.data?.sesionActiva) {
+          const tokenResult = await client.obtenerTokenWhatsapp(validated.telefonoWhatsapp);
+          if (tokenResult.success && tokenResult.data?.token) {
+            client.setToken(tokenResult.data.token);
+          }
+        }
+        const estado = estadoResult.data || {};
+        return `Estado de autenticacion:
+- Sesion activa: ${estado.sesionActiva ? 'Si' : 'No'}
+- Cuenta existe: ${estado.cuentaExiste ? 'Si' : 'No'}
+- Dispositivo registrado: ${estado.dispositivoRegistrado ? 'Si' : 'No'}
+${estado.mensaje ? `- Mensaje: ${estado.mensaje}` : ''}
+${estado.sesionActiva ? 'La sesion esta configurada. Puedes proceder con operaciones financieras.' : ''}`;
+      }
+
+      case 'registrarUsuario': {
+        const validated = RegistrarUsuarioSchema.parse(args);
+        const result = await client.registrarUsuarioWhatsapp(validated.telefonoWhatsapp, validated.nombre, validated.email, validated.password);
+        if (result.success) {
+          return `Usuario registrado exitosamente. ${result.data?.codigoVerificacion ? 'Se ha enviado un codigo de verificacion.' : ''} ${result.message || ''}`;
+        }
+        return `Error al registrar usuario: ${result.message}`;
+      }
+
+      case 'solicitarCodigo': {
+        const validated = SolicitarCodigoSchema.parse(args);
+        const result = await client.solicitarCodigoWhatsapp(validated.telefonoWhatsapp);
+        if (result.success) {
+          return `Codigo de verificacion enviado. ${result.message || 'Por favor ingresa el codigo de 6 digitos.'}`;
+        }
+        return `Error al solicitar codigo: ${result.message}`;
+      }
+
+      case 'verificarCodigo': {
+        const validated = VerificarCodigoSchema.parse(args);
+        const result = await client.verificarCodigoWhatsapp(validated.telefonoWhatsapp, validated.codigo);
+        if (result.success) {
+          const tokenResult = await client.obtenerTokenWhatsapp(validated.telefonoWhatsapp);
+          if (tokenResult.success && tokenResult.data?.token) {
+            client.setToken(tokenResult.data.token);
+          }
+          return 'Codigo verificado exitosamente. La sesion esta activa y configurada. Puedes proceder con operaciones financieras.';
+        }
+        return `Error al verificar codigo: ${result.message}`;
+      }
+
+      case 'generarLinkOAuth': {
+        const validated = GenerarLinkOAuthSchema.parse(args);
+        const result = await client.generarLinkOAuthWhatsapp(validated.telefonoWhatsapp);
+        if (result.success) {
+          return `Enlace de autenticacion generado: ${result.data?.urlFrontend || result.data?.url || 'URL no disponible'}`;
+        }
+        return `Error al generar enlace: ${result.message}`;
+      }
 
       default:
         return `Herramienta desconocida: ${name}`;
@@ -1591,7 +1734,7 @@ function getFirstDayOfMonth(): string {
  * Crea y configura una instancia del servidor MCP con todos los handlers registrados.
  * Permite reutilizar la misma configuracion tanto en modo stdio como en modo HTTP.
  */
-export function createMcpServer(): Server {
+export function createMcpServer(client?: FinanzAppApiClient): Server {
   const server = new Server(
     {
       name: 'finanzapp-mcp',
@@ -1611,7 +1754,7 @@ export function createMcpServer(): Server {
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
 
-    const result = await handleToolCall(name, args as Record<string, unknown>);
+    const result = await handleToolCall(name, args as Record<string, unknown>, client || apiClient);
 
     return {
       content: [
@@ -1626,9 +1769,9 @@ export function createMcpServer(): Server {
   return server;
 }
 
-// Solo iniciar en modo stdio si no se solicita transporte HTTP
+// Solo iniciar en modo stdio si no se solicita transporte HTTP o SSE
 const transportMode = process.env.MCP_TRANSPORT;
-if (transportMode !== 'http') {
+if (transportMode !== 'http' && transportMode !== 'sse') {
   const server = createMcpServer();
   const stdioTransport = new StdioServerTransport();
   server.connect(stdioTransport).then(() => {
