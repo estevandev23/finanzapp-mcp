@@ -134,6 +134,52 @@ const ObtenerAhorrosPorMetaSchema = z.object({
   metaId: z.string().uuid('ID de meta inválido'),
 });
 
+const EditarIngresoSchema = z.object({
+  id: z.string().describe('ID del ingreso a editar'),
+  monto: z.number().optional().describe('Nuevo monto del ingreso'),
+  categoria: z.enum(['TRABAJO_PRINCIPAL', 'TRABAJO_EXTRA', 'GANANCIAS_ADICIONALES', 'INVERSIONES', 'OTROS']).optional().describe('Nueva categoría'),
+  descripcion: z.string().optional().describe('Nueva descripción'),
+  fecha: z.string().optional().describe('Nueva fecha en formato YYYY-MM-DD'),
+  metodoPago: z.enum(['EFECTIVO', 'NEQUI', 'BANCOLOMBIA', 'OTRO']).optional().describe('Nuevo método de pago'),
+});
+
+const EliminarRegistroSchema = z.object({
+  id: z.string().describe('ID del registro a eliminar'),
+});
+
+const EditarGastoSchema = z.object({
+  id: z.string().describe('ID del gasto a editar'),
+  monto: z.number().optional().describe('Nuevo monto del gasto'),
+  categoria: z.enum(['COMIDA', 'PAREJA', 'COMPRAS', 'TRANSPORTE', 'SERVICIOS', 'ENTRETENIMIENTO', 'SALUD', 'EDUCACION', 'INVERSIONES', 'ABONO', 'OTROS']).optional().describe('Nueva categoría'),
+  descripcion: z.string().optional().describe('Nueva descripción'),
+  fecha: z.string().optional().describe('Nueva fecha en formato YYYY-MM-DD'),
+  metodoPago: z.enum(['EFECTIVO', 'NEQUI', 'BANCOLOMBIA', 'OTRO']).optional().describe('Nuevo método de pago'),
+});
+
+const EditarAhorroSchema = z.object({
+  id: z.string().describe('ID del ahorro a editar'),
+  monto: z.number().optional().describe('Nuevo monto del ahorro'),
+  descripcion: z.string().optional().describe('Nueva descripción'),
+  fecha: z.string().optional().describe('Nueva fecha en formato YYYY-MM-DD'),
+  metaId: z.string().optional().describe('ID de la meta financiera a asociar'),
+});
+
+const EditarMetaSchema = z.object({
+  id: z.string().describe('ID de la meta a editar'),
+  nombre: z.string().optional().describe('Nuevo nombre de la meta'),
+  montoObjetivo: z.number().optional().describe('Nuevo monto objetivo'),
+  descripcion: z.string().optional().describe('Nueva descripción'),
+  fechaLimite: z.string().optional().describe('Nueva fecha límite en formato YYYY-MM-DD'),
+});
+
+const EditarDeudaSchema = z.object({
+  id: z.string().describe('ID de la deuda a editar'),
+  descripcion: z.string().optional().describe('Nueva descripción'),
+  entidad: z.string().optional().describe('Nueva persona o entidad'),
+  montoTotal: z.number().optional().describe('Nuevo monto total'),
+  fechaLimite: z.string().optional().describe('Nueva fecha límite en formato YYYY-MM-DD'),
+});
+
 // ==================== DEFINICIÓN DE HERRAMIENTAS ====================
 
 const tools: Tool[] = [
@@ -194,6 +240,33 @@ Se puede indicar el método de pago: EFECTIVO, NEQUI, BANCOLOMBIA, OTRO (por def
     inputSchema: {
       type: 'object',
       properties: {},
+    },
+  },
+  {
+    name: 'editarIngreso',
+    description: 'Edita un ingreso existente. Todos los campos son opcionales excepto el ID.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        id: { type: 'string', description: 'ID del ingreso a editar' },
+        monto: { type: 'number', description: 'Nuevo monto del ingreso' },
+        categoria: { type: 'string', enum: ['TRABAJO_PRINCIPAL', 'TRABAJO_EXTRA', 'GANANCIAS_ADICIONALES', 'INVERSIONES', 'OTROS'], description: 'Nueva categoría' },
+        descripcion: { type: 'string', description: 'Nueva descripción' },
+        fecha: { type: 'string', description: 'Nueva fecha en formato YYYY-MM-DD' },
+        metodoPago: { type: 'string', enum: ['EFECTIVO', 'NEQUI', 'BANCOLOMBIA', 'OTRO'], description: 'Nuevo método de pago' },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'eliminarIngreso',
+    description: 'Elimina un ingreso por su ID.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        id: { type: 'string', description: 'ID del ingreso a eliminar' },
+      },
+      required: ['id'],
     },
   },
 
@@ -288,6 +361,33 @@ Se puede indicar el método de pago: EFECTIVO, NEQUI, BANCOLOMBIA, OTRO (por def
       required: ['fechaInicio', 'fechaFin'],
     },
   },
+  {
+    name: 'editarEgreso',
+    description: 'Edita un gasto/egreso existente. Todos los campos son opcionales excepto el ID.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        id: { type: 'string', description: 'ID del gasto a editar' },
+        monto: { type: 'number', description: 'Nuevo monto del gasto' },
+        categoria: { type: 'string', enum: ['COMIDA', 'PAREJA', 'COMPRAS', 'TRANSPORTE', 'SERVICIOS', 'ENTRETENIMIENTO', 'SALUD', 'EDUCACION', 'INVERSIONES', 'ABONO', 'OTROS'], description: 'Nueva categoría' },
+        descripcion: { type: 'string', description: 'Nueva descripción' },
+        fecha: { type: 'string', description: 'Nueva fecha en formato YYYY-MM-DD' },
+        metodoPago: { type: 'string', enum: ['EFECTIVO', 'NEQUI', 'BANCOLOMBIA', 'OTRO'], description: 'Nuevo método de pago' },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'eliminarEgreso',
+    description: 'Elimina un gasto/egreso por su ID.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        id: { type: 'string', description: 'ID del gasto a eliminar' },
+      },
+      required: ['id'],
+    },
+  },
 
   // --- AHORROS ---
   {
@@ -330,6 +430,32 @@ Se puede indicar el método de pago: EFECTIVO, NEQUI, BANCOLOMBIA, OTRO (por def
     inputSchema: {
       type: 'object',
       properties: {},
+    },
+  },
+  {
+    name: 'editarAhorro',
+    description: 'Edita un ahorro existente. Todos los campos son opcionales excepto el ID.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        id: { type: 'string', description: 'ID del ahorro a editar' },
+        monto: { type: 'number', description: 'Nuevo monto del ahorro' },
+        descripcion: { type: 'string', description: 'Nueva descripción' },
+        fecha: { type: 'string', description: 'Nueva fecha en formato YYYY-MM-DD' },
+        metaId: { type: 'string', description: 'ID de la meta financiera a asociar' },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'eliminarAhorro',
+    description: 'Elimina un ahorro por su ID.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        id: { type: 'string', description: 'ID del ahorro a eliminar' },
+      },
+      required: ['id'],
     },
   },
 
@@ -401,6 +527,32 @@ Se puede indicar el método de pago: EFECTIVO, NEQUI, BANCOLOMBIA, OTRO (por def
         metaId: { type: 'string', description: 'ID de la meta financiera' },
       },
       required: ['metaId'],
+    },
+  },
+  {
+    name: 'editarMeta',
+    description: 'Edita una meta financiera existente. Todos los campos son opcionales excepto el ID.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        id: { type: 'string', description: 'ID de la meta a editar' },
+        nombre: { type: 'string', description: 'Nuevo nombre de la meta' },
+        montoObjetivo: { type: 'number', description: 'Nuevo monto objetivo' },
+        descripcion: { type: 'string', description: 'Nueva descripción' },
+        fechaLimite: { type: 'string', description: 'Nueva fecha límite en formato YYYY-MM-DD' },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'eliminarMeta',
+    description: 'Elimina una meta financiera por su ID.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        id: { type: 'string', description: 'ID de la meta a eliminar' },
+      },
+      required: ['id'],
     },
   },
 
@@ -598,6 +750,32 @@ Cuando el monto restante llega a 0, se marca como COMPLETADA automaticamente.`,
     },
   },
   {
+    name: 'editarDeuda',
+    description: 'Edita una deuda o préstamo existente. Todos los campos son opcionales excepto el ID.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        id: { type: 'string', description: 'ID de la deuda a editar' },
+        descripcion: { type: 'string', description: 'Nueva descripción' },
+        entidad: { type: 'string', description: 'Nueva persona o entidad' },
+        montoTotal: { type: 'number', description: 'Nuevo monto total' },
+        fechaLimite: { type: 'string', description: 'Nueva fecha límite en formato YYYY-MM-DD' },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'eliminarDeuda',
+    description: 'Elimina una deuda o préstamo por su ID.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        id: { type: 'string', description: 'ID de la deuda a eliminar' },
+      },
+      required: ['id'],
+    },
+  },
+  {
     name: 'crearInversion',
     description: 'Crea una nueva inversión. Al crearse, se registra automáticamente un gasto por el monto invertido. Se puede indicar el retorno esperado como referencia, sin que afecte el balance.',
     inputSchema: {
@@ -701,6 +879,23 @@ ${validated.metaId ? `- Asociado a meta: ${validated.metaId}` : ''}`;
           : `Error al obtener total: ${result.message}`;
       }
 
+      case 'editarIngreso': {
+        const validatedEdit = EditarIngresoSchema.parse(args);
+        const { id, ...datos } = validatedEdit;
+        const result = await apiClient.actualizarIngreso(id, datos);
+        return result.success
+          ? `Ingreso actualizado exitosamente.`
+          : `Error al actualizar ingreso: ${result.message}`;
+      }
+
+      case 'eliminarIngreso': {
+        const validatedDel = EliminarRegistroSchema.parse(args);
+        const result = await apiClient.eliminarIngreso(validatedDel.id);
+        return result.success
+          ? `Ingreso eliminado exitosamente.`
+          : `Error al eliminar ingreso: ${result.message}`;
+      }
+
       // --- GASTOS ---
       case 'crearEgreso': {
         const validated = CrearGastoSchema.parse(args);
@@ -794,6 +989,23 @@ ${validated.metaId ? `- Asociado a meta: ${validated.metaId}` : ''}`;
         return `No hay gastos en el período ${validated.fechaInicio} a ${validated.fechaFin}.`;
       }
 
+      case 'editarEgreso': {
+        const validatedEditGasto = EditarGastoSchema.parse(args);
+        const { id, ...datos } = validatedEditGasto;
+        const result = await apiClient.actualizarGasto(id, datos);
+        return result.success
+          ? `Gasto actualizado exitosamente.`
+          : `Error al actualizar gasto: ${result.message}`;
+      }
+
+      case 'eliminarEgreso': {
+        const validatedDelGasto = EliminarRegistroSchema.parse(args);
+        const result = await apiClient.eliminarGasto(validatedDelGasto.id);
+        return result.success
+          ? `Gasto eliminado exitosamente.`
+          : `Error al eliminar gasto: ${result.message}`;
+      }
+
       // --- AHORROS ---
       case 'crearAhorro': {
         const validated = CrearAhorroSchema.parse(args);
@@ -841,6 +1053,23 @@ ${validated.metaId ? '- Asociado a una meta financiera' : ''}`;
         return result.success
           ? `Total de ahorros: $${result.data.toLocaleString()}`
           : `Error al obtener total: ${result.message}`;
+      }
+
+      case 'editarAhorro': {
+        const validatedEditAhorro = EditarAhorroSchema.parse(args);
+        const { id, ...datos } = validatedEditAhorro;
+        const result = await apiClient.actualizarAhorro(id, datos);
+        return result.success
+          ? `Ahorro actualizado exitosamente.`
+          : `Error al actualizar ahorro: ${result.message}`;
+      }
+
+      case 'eliminarAhorro': {
+        const validatedDelAhorro = EliminarRegistroSchema.parse(args);
+        const result = await apiClient.eliminarAhorro(validatedDelAhorro.id);
+        return result.success
+          ? `Ahorro eliminado exitosamente.`
+          : `Error al eliminar ahorro: ${result.message}`;
       }
 
       // --- METAS ---
@@ -913,6 +1142,23 @@ ${validated.fechaLimite ? `- Fecha límite: ${validated.fechaLimite}` : ''}`;
           return `Ahorros asociados a la meta:\n${ahorros}\n\nTotal ahorrado: $${total.toLocaleString()}`;
         }
         return 'No hay ahorros asociados a esta meta.';
+      }
+
+      case 'editarMeta': {
+        const validatedEditMeta = EditarMetaSchema.parse(args);
+        const { id, ...datos } = validatedEditMeta;
+        const result = await apiClient.actualizarMeta(id, datos);
+        return result.success
+          ? `Meta actualizada exitosamente.`
+          : `Error al actualizar meta: ${result.message}`;
+      }
+
+      case 'eliminarMeta': {
+        const validatedDelMeta = EliminarRegistroSchema.parse(args);
+        const result = await apiClient.eliminarMeta(validatedDelMeta.id);
+        return result.success
+          ? `Meta eliminada exitosamente.`
+          : `Error al eliminar meta: ${result.message}`;
       }
 
       // --- BALANCE ---
@@ -1235,6 +1481,23 @@ ${validated.fechaLimite ? `- Fecha limite: ${validated.fechaLimite}` : ''}`;
         return `No hay deudas en estado ${validated.estado}.`;
       }
 
+      case 'editarDeuda': {
+        const validatedEditDeuda = EditarDeudaSchema.parse(args);
+        const { id, ...datos } = validatedEditDeuda;
+        const result = await apiClient.actualizarDeuda(id, datos);
+        return result.success
+          ? `Deuda actualizada exitosamente.`
+          : `Error al actualizar deuda: ${result.message}`;
+      }
+
+      case 'eliminarDeuda': {
+        const validatedDelDeuda = EliminarRegistroSchema.parse(args);
+        const result = await apiClient.eliminarDeuda(validatedDelDeuda.id);
+        return result.success
+          ? `Deuda eliminada exitosamente.`
+          : `Error al eliminar deuda: ${result.message}`;
+      }
+
       // --- INVERSIONES ---
       case 'crearInversion': {
         const validated = CrearInversionSchema.parse(args);
@@ -1324,47 +1587,54 @@ function getFirstDayOfMonth(): string {
 
 // ==================== SERVIDOR MCP ====================
 
-const server = new Server(
-  {
-    name: 'finanzapp-mcp',
-    version: '1.0.0',
-  },
-  {
-    capabilities: {
-      tools: {},
+/**
+ * Crea y configura una instancia del servidor MCP con todos los handlers registrados.
+ * Permite reutilizar la misma configuracion tanto en modo stdio como en modo HTTP.
+ */
+export function createMcpServer(): Server {
+  const server = new Server(
+    {
+      name: 'finanzapp-mcp',
+      version: '1.0.0',
     },
-  }
-);
-
-// Listar herramientas disponibles
-server.setRequestHandler(ListToolsRequestSchema, async () => {
-  return { tools };
-});
-
-// Ejecutar herramienta
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request.params;
-
-  const result = await handleToolCall(name, args as Record<string, unknown>);
-
-  return {
-    content: [
-      {
-        type: 'text',
-        text: result,
+    {
+      capabilities: {
+        tools: {},
       },
-    ],
-  };
-});
+    }
+  );
 
-// Iniciar servidor
-async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error('FinanzApp MCP Server iniciado');
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    return { tools };
+  });
+
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const { name, arguments: args } = request.params;
+
+    const result = await handleToolCall(name, args as Record<string, unknown>);
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: result,
+        },
+      ],
+    };
+  });
+
+  return server;
 }
 
-main().catch((error) => {
-  console.error('Error fatal:', error);
-  process.exit(1);
-});
+// Solo iniciar en modo stdio si no se solicita transporte HTTP
+const transportMode = process.env.MCP_TRANSPORT;
+if (transportMode !== 'http') {
+  const server = createMcpServer();
+  const stdioTransport = new StdioServerTransport();
+  server.connect(stdioTransport).then(() => {
+    console.error('FinanzApp MCP Server iniciado (stdio)');
+  }).catch((error) => {
+    console.error('Error fatal:', error);
+    process.exit(1);
+  });
+}

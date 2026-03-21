@@ -41,10 +41,12 @@ COPY --from=builder /app/dist ./dist
 # Cambiar a usuario sin privilegios
 USER mcpuser
 
-# El servidor MCP usa stdio como transporte; no expone un puerto HTTP.
 # Las variables de entorno necesarias se inyectan en tiempo de ejecución.
 ENV NODE_ENV=production
 
-# Comando de arranque
+# Puerto HTTP para el transporte Streamable HTTP (solo se usa cuando MCP_TRANSPORT=http)
+EXPOSE 3001
+
+# Comando de arranque: usa stdio por defecto; si MCP_TRANSPORT=http, usar http-server.js
 CMD ["node", "dist/index.js"]
 

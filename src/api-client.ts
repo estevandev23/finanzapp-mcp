@@ -318,6 +318,58 @@ export class FinanzAppApiClient {
     return response.data;
   }
 
+  // ==================== EDICIÓN Y ELIMINACIÓN ====================
+
+  async actualizarIngreso(id: string, datos: Partial<IngresoRequest>): Promise<ApiResponse<any>> {
+    const response = await this.client.put<ApiResponse<any>>(`/ingresos/${id}`, datos);
+    return response.data;
+  }
+
+  async eliminarIngreso(id: string): Promise<ApiResponse<any>> {
+    const response = await this.client.delete<ApiResponse<any>>(`/ingresos/${id}`);
+    return response.data;
+  }
+
+  async actualizarGasto(id: string, datos: Partial<GastoRequest>): Promise<ApiResponse<any>> {
+    const response = await this.client.put<ApiResponse<any>>(`/gastos/${id}`, datos);
+    return response.data;
+  }
+
+  async eliminarGasto(id: string): Promise<ApiResponse<any>> {
+    const response = await this.client.delete<ApiResponse<any>>(`/gastos/${id}`);
+    return response.data;
+  }
+
+  async actualizarAhorro(id: string, datos: Partial<AhorroRequest>): Promise<ApiResponse<any>> {
+    const response = await this.client.put<ApiResponse<any>>(`/ahorros/${id}`, datos);
+    return response.data;
+  }
+
+  async eliminarAhorro(id: string): Promise<ApiResponse<any>> {
+    const response = await this.client.delete<ApiResponse<any>>(`/ahorros/${id}`);
+    return response.data;
+  }
+
+  async actualizarMeta(id: string, datos: Partial<MetaFinancieraRequest>): Promise<ApiResponse<any>> {
+    const response = await this.client.put<ApiResponse<any>>(`/metas/${id}`, datos);
+    return response.data;
+  }
+
+  async eliminarMeta(id: string): Promise<ApiResponse<any>> {
+    const response = await this.client.delete<ApiResponse<any>>(`/metas/${id}`);
+    return response.data;
+  }
+
+  async actualizarDeuda(id: string, datos: Partial<DeudaRequest>): Promise<ApiResponse<any>> {
+    const response = await this.client.put<ApiResponse<any>>(`/deudas/${id}`, datos);
+    return response.data;
+  }
+
+  async eliminarDeuda(id: string): Promise<ApiResponse<any>> {
+    const response = await this.client.delete<ApiResponse<any>>(`/deudas/${id}`);
+    return response.data;
+  }
+
   // ==================== WHATSAPP (sin auth) ====================
 
   async registrarIngresoWhatsapp(numeroWhatsapp: string, monto: number, categoria: string, descripcion?: string): Promise<ApiResponse<any>> {
