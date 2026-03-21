@@ -465,6 +465,21 @@ export class FinanzAppApiClient {
     return response.data;
   }
 
+  async crearCategoriaPersonalizada(nombre: string, tipo: string, color?: string, icono?: string): Promise<ApiResponse<any>> {
+    const response = await this.client.post<ApiResponse<any>>('/categorias', { nombre, tipo, color, icono });
+    return response.data;
+  }
+
+  async actualizarCategoriaPersonalizada(id: string, datos: { nombre?: string; color?: string; icono?: string }): Promise<ApiResponse<any>> {
+    const response = await this.client.put<ApiResponse<any>>(`/categorias/${id}`, datos);
+    return response.data;
+  }
+
+  async eliminarCategoriaPersonalizada(id: string): Promise<ApiResponse<any>> {
+    const response = await this.client.delete<ApiResponse<any>>(`/categorias/${id}`);
+    return response.data;
+  }
+
   // ==================== DEUDAS Y PRÉSTAMOS ====================
 
   async crearDeuda(data: DeudaRequest): Promise<ApiResponse<any>> {

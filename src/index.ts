@@ -205,6 +205,32 @@ const GenerarLinkOAuthSchema = z.object({
   telefonoWhatsapp: z.string().min(1, 'El telefono es requerido'),
 });
 
+const CrearCategoriaPersonalizadaSchema = z.object({
+  nombre: z.string().min(1, 'El nombre es requerido'),
+  tipo: z.enum(['INGRESO', 'GASTO']),
+  color: z.string().optional(),
+  icono: z.string().optional(),
+});
+
+const EditarCategoriaPersonalizadaSchema = z.object({
+  id: z.string().min(1, 'El ID es requerido'),
+  nombre: z.string().optional(),
+  color: z.string().optional(),
+  icono: z.string().optional(),
+});
+
+const EliminarCategoriaPersonalizadaSchema = z.object({
+  id: z.string().min(1, 'El ID es requerido'),
+});
+
+const ObtenerInversionPorIdSchema = z.object({
+  id: z.string().min(1, 'El ID de la inversión es requerido'),
+});
+
+const EliminarInversionSchema = z.object({
+  id: z.string().min(1, 'El ID de la inversión es requerido'),
+});
+
 // ==================== DEFINICIÓN DE HERRAMIENTAS ====================
 
 const tools: Tool[] = [
@@ -294,6 +320,33 @@ Se puede indicar el método de pago: EFECTIVO, NEQUI, BANCOLOMBIA, OTRO (por def
       required: ['id'],
     },
   },
+  {
+    name: 'obtenerIngresosPorCategoria',
+    description: 'Obtiene los ingresos filtrados por una categoría específica.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        categoria: {
+          type: 'string',
+          enum: ['TRABAJO_PRINCIPAL', 'TRABAJO_EXTRA', 'GANANCIAS_ADICIONALES', 'INVERSIONES', 'OTROS'],
+          description: 'Categoría a consultar',
+        },
+      },
+      required: ['categoria'],
+    },
+  },
+  {
+    name: 'obtenerTotalIngresosPorPeriodo',
+    description: 'Obtiene el total de ingresos en un rango de fechas específico.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        fechaInicio: { type: 'string', description: 'Fecha inicial en formato YYYY-MM-DD' },
+        fechaFin: { type: 'string', description: 'Fecha final en formato YYYY-MM-DD' },
+      },
+      required: ['fechaInicio', 'fechaFin'],
+    },
+  },
 
   // --- GASTOS (EGRESOS) ---
   {
@@ -364,6 +417,18 @@ Se puede indicar el método de pago: EFECTIVO, NEQUI, BANCOLOMBIA, OTRO (por def
     inputSchema: {
       type: 'object',
       properties: {},
+    },
+  },
+  {
+    name: 'obtenerTotalGastosPorPeriodo',
+    description: 'Obtiene el total de gastos en un rango de fechas específico.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        fechaInicio: { type: 'string', description: 'Fecha inicial en formato YYYY-MM-DD' },
+        fechaFin: { type: 'string', description: 'Fecha final en formato YYYY-MM-DD' },
+      },
+      required: ['fechaInicio', 'fechaFin'],
     },
   },
   {
@@ -455,6 +520,18 @@ Se puede indicar el método de pago: EFECTIVO, NEQUI, BANCOLOMBIA, OTRO (por def
     inputSchema: {
       type: 'object',
       properties: {},
+    },
+  },
+  {
+    name: 'obtenerTotalAhorrosPorPeriodo',
+    description: 'Obtiene el total de ahorros en un rango de fechas específico.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        fechaInicio: { type: 'string', description: 'Fecha inicial en formato YYYY-MM-DD' },
+        fechaFin: { type: 'string', description: 'Fecha final en formato YYYY-MM-DD' },
+      },
+      required: ['fechaInicio', 'fechaFin'],
     },
   },
   {
@@ -674,6 +751,45 @@ identificando patrones de gasto y evaluando el cumplimiento de metas.
       },
     },
   },
+  {
+    name: 'crearCategoriaPersonalizada',
+    description: 'Crea una nueva categoría personalizada para el usuario. Puede ser de tipo INGRESO o GASTO.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        nombre: { type: 'string', description: 'Nombre de la categoría (obligatorio)' },
+        tipo: { type: 'string', enum: ['INGRESO', 'GASTO'], description: 'Tipo de categoría: INGRESO o GASTO' },
+        color: { type: 'string', description: 'Color en formato hex (opcional, ej: #FF5733)' },
+        icono: { type: 'string', description: 'Nombre del icono (opcional)' },
+      },
+      required: ['nombre', 'tipo'],
+    },
+  },
+  {
+    name: 'editarCategoriaPersonalizada',
+    description: 'Edita una categoría personalizada existente. El nombre, color e icono son opcionales.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'ID de la categoría a editar' },
+        nombre: { type: 'string', description: 'Nuevo nombre de la categoría' },
+        color: { type: 'string', description: 'Nuevo color en formato hex' },
+        icono: { type: 'string', description: 'Nuevo icono' },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'eliminarCategoriaPersonalizada',
+    description: 'Elimina una categoría personalizada por su ID.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'ID de la categoría a eliminar' },
+      },
+      required: ['id'],
+    },
+  },
 
   // --- DEUDAS Y PRÉSTAMOS ---
   {
@@ -838,6 +954,28 @@ Cuando el monto restante llega a 0, se marca como COMPLETADA automaticamente.`,
       required: ['inversionId', 'retornoReal'],
     },
   },
+  {
+    name: 'obtenerInversionPorId',
+    description: 'Obtiene los detalles de una inversión específica por su ID.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'ID de la inversión a consultar' },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'eliminarInversion',
+    description: 'Elimina una inversión por su ID.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'ID de la inversión a eliminar' },
+      },
+      required: ['id'],
+    },
+  },
   // ==================== AUTENTICACION WHATSAPP ====================
   {
     name: 'verificarEstadoAuth',
@@ -981,6 +1119,30 @@ ${validated.metaId ? `- Asociado a meta: ${validated.metaId}` : ''}`;
           : `Error al eliminar ingreso: ${result.message}`;
       }
 
+      case 'obtenerIngresosPorCategoria': {
+        const { categoria } = args as { categoria: string };
+        const result = await client.obtenerIngresosPorCategoria(categoria);
+        if (result.success && result.data) {
+          if (result.data.length === 0) {
+            return `No hay ingresos registrados en la categoría ${categoria}.`;
+          }
+          const lista = result.data.map((i: any) =>
+            `- $${i.monto?.toLocaleString()} | ${i.descripcion || 'Sin descripción'} | ${i.fecha}`
+          ).join('\n');
+          return `Ingresos en categoría ${categoria} (${result.data.length}):\n${lista}`;
+        }
+        return `Error al obtener ingresos por categoría: ${result.message}`;
+      }
+
+      case 'obtenerTotalIngresosPorPeriodo': {
+        const { fechaInicio, fechaFin } = args as { fechaInicio: string; fechaFin: string };
+        const result = await client.obtenerTotalIngresosPorPeriodo(fechaInicio, fechaFin);
+        if (result.success) {
+          return `Total de ingresos del ${fechaInicio} al ${fechaFin}: $${result.data?.toLocaleString() || 0}`;
+        }
+        return `Error al obtener total de ingresos por período: ${result.message}`;
+      }
+
       // --- GASTOS ---
       case 'crearEgreso': {
         const validated = CrearGastoSchema.parse(args);
@@ -1047,6 +1209,15 @@ ${validated.metaId ? `- Asociado a meta: ${validated.metaId}` : ''}`;
         return result.success
           ? `Total de gastos: $${result.data.toLocaleString()}`
           : `Error al obtener total: ${result.message}`;
+      }
+
+      case 'obtenerTotalGastosPorPeriodo': {
+        const { fechaInicio, fechaFin } = args as { fechaInicio: string; fechaFin: string };
+        const result = await client.obtenerTotalGastosPorPeriodo(fechaInicio, fechaFin);
+        if (result.success) {
+          return `Total de gastos del ${fechaInicio} al ${fechaFin}: $${result.data?.toLocaleString() || 0}`;
+        }
+        return `Error al obtener total de gastos por período: ${result.message}`;
       }
 
       case 'obtenerDesgloseGastos': {
@@ -1138,6 +1309,15 @@ ${validated.metaId ? '- Asociado a una meta financiera' : ''}`;
         return result.success
           ? `Total de ahorros: $${result.data.toLocaleString()}`
           : `Error al obtener total: ${result.message}`;
+      }
+
+      case 'obtenerTotalAhorrosPorPeriodo': {
+        const { fechaInicio, fechaFin } = args as { fechaInicio: string; fechaFin: string };
+        const result = await client.obtenerTotalAhorrosPorPeriodo(fechaInicio, fechaFin);
+        if (result.success) {
+          return `Total de ahorros del ${fechaInicio} al ${fechaFin}: $${result.data?.toLocaleString() || 0}`;
+        }
+        return `Error al obtener total de ahorros por período: ${result.message}`;
       }
 
       case 'editarAhorro': {
@@ -1472,6 +1652,34 @@ ${validated.fechaLimite ? `- Fecha límite: ${validated.fechaLimite}` : ''}`;
           : 'No hay categorías personalizadas registradas.';
       }
 
+      case 'crearCategoriaPersonalizada': {
+        const validated = CrearCategoriaPersonalizadaSchema.parse(args);
+        const result = await client.crearCategoriaPersonalizada(validated.nombre, validated.tipo, validated.color, validated.icono);
+        if (result.success) {
+          return `Categoría personalizada creada exitosamente:
+- Nombre: ${validated.nombre}
+- Tipo: ${validated.tipo}${validated.color ? `\n- Color: ${validated.color}` : ''}`;
+        }
+        return `Error al crear categoría: ${result.message}`;
+      }
+
+      case 'editarCategoriaPersonalizada': {
+        const validated = EditarCategoriaPersonalizadaSchema.parse(args);
+        const { id, ...datos } = validated;
+        const result = await client.actualizarCategoriaPersonalizada(id, datos);
+        return result.success
+          ? `Categoría personalizada actualizada exitosamente.`
+          : `Error al actualizar categoría: ${result.message}`;
+      }
+
+      case 'eliminarCategoriaPersonalizada': {
+        const validated = EliminarCategoriaPersonalizadaSchema.parse(args);
+        const result = await client.eliminarCategoriaPersonalizada(validated.id);
+        return result.success
+          ? `Categoría personalizada eliminada exitosamente.`
+          : `Error al eliminar categoría: ${result.message}`;
+      }
+
       // --- DEUDAS Y PRÉSTAMOS ---
       case 'crearDeuda': {
         const validated = CrearDeudaSchema.parse(args);
@@ -1642,6 +1850,29 @@ ${resGanancia ? `- ${resGanancia}` : ''}
 - Se generó un ingreso automático por el retorno.`;
         }
         return `Error al registrar retorno: ${result.message}`;
+      }
+
+      case 'obtenerInversionPorId': {
+        const validated = ObtenerInversionPorIdSchema.parse(args);
+        const result = await client.obtenerInversionPorId(validated.id);
+        if (result.success && result.data) {
+          const inv = result.data;
+          return `Inversión encontrada:
+- Nombre: ${inv.nombre}
+- Monto invertido: $${Number(inv.monto).toLocaleString()}
+- Retorno esperado: ${inv.retornoEsperado ? `$${Number(inv.retornoEsperado).toLocaleString()}` : 'No definido'}
+- Estado: ${inv.estado}
+- Fecha: ${inv.fechaInversion}${inv.retornoReal ? `\n- Retorno real: $${Number(inv.retornoReal).toLocaleString()}` : ''}`;
+        }
+        return `Error al obtener inversión: ${result.message}`;
+      }
+
+      case 'eliminarInversion': {
+        const validated = EliminarInversionSchema.parse(args);
+        const result = await client.eliminarInversion(validated.id);
+        return result.success
+          ? `Inversión eliminada exitosamente.`
+          : `Error al eliminar inversión: ${result.message}`;
       }
 
       // --- AUTENTICACION WHATSAPP ---
