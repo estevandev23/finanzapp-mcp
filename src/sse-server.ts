@@ -21,6 +21,16 @@ const port = parseInt(process.env.MCP_SSE_PORT || process.env.MCP_HTTP_PORT || '
 
 app.use(express.json());
 
+// Request logging para debug
+app.use((req, _res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} headers: ${JSON.stringify({
+    'mcp-session-id': req.headers['mcp-session-id'],
+    'accept': req.headers['accept'],
+    'content-type': req.headers['content-type'],
+  })}`);
+  next();
+});
+
 // ==================== Streamable HTTP Transport ====================
 
 const streamableSessions = new Map<string, {
@@ -62,13 +72,35 @@ app.post('/mcp', async (req: Request, res: Response) => {
 app.get('/mcp', async (req: Request, res: Response) => {
   const sessionId = req.headers['mcp-session-id'] as string | undefined;
 
-  if (!sessionId || !streamableSessions.has(sessionId)) {
-    res.status(400).json({ error: 'Session ID requerido o invalido' });
+  // Sesion existente: delegar al transport
+  if (sessionId && streamableSessions.has(sessionId)) {
+    const session = streamableSessions.get(sessionId)!;
+    await session.transport.handleRequest(req, res);
     return;
   }
 
-  const session = streamableSessions.get(sessionId)!;
-  await session.transport.handleRequest(req, res);
+  // Sin session: n8n envía GET antes de POST initialize.
+  // El SDK rechaza GET sin sesion inicializada (400).
+  // Retornamos un SSE stream vacío para que n8n proceda con POST.
+  console.log('GET /mcp sin sesion - abriendo SSE stream pendiente');
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    'Connection': 'keep-alive',
+  });
+  res.write(':ok\n\n');
+  res.flushHeaders();
+
+  const keepAlive = setInterval(() => {
+    if (!res.writableEnded) {
+      res.write(':ping\n\n');
+    }
+  }, 15000);
+
+  res.on('close', () => {
+    clearInterval(keepAlive);
+    console.log('SSE stream pendiente cerrada');
+  });
 });
 
 app.delete('/mcp', async (req: Request, res: Response) => {
