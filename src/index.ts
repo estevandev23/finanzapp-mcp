@@ -1937,10 +1937,17 @@ ${estado.sesionActiva ? 'La sesion esta configurada. Puedes proceder con operaci
       default:
         return `Herramienta desconocida: ${name}`;
     }
-  } catch (error) {
+  } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return `Error de validación: ${error.errors.map(e => e.message).join(', ')}`;
+      return `Error de validacion: ${error.errors.map(e => e.message).join(', ')}`;
     }
+
+    // Detectar errores HTTP 401/403 para indicar falta de autenticacion
+    const status = error?.response?.status;
+    if (status === 401 || status === 403) {
+      return `Error de autenticacion (HTTP ${status}): No tienes sesion activa. DEBES llamar a 'verificarEstadoAuth' con el numero de WhatsApp del usuario antes de usar cualquier herramienta financiera.`;
+    }
+
     if (error instanceof Error) {
       return `Error: ${error.message}`;
     }
@@ -1985,16 +1992,34 @@ export function createMcpServer(client?: FinanzAppApiClient): Server {
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
 
-    const result = await handleToolCall(name, args as Record<string, unknown>, client || apiClient);
+    console.error(`[MCP Tool] Llamando: ${name} args=${JSON.stringify(args)}`);
+    const startTime = Date.now();
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: result,
-        },
-      ],
-    };
+    try {
+      const result = await handleToolCall(name, args as Record<string, unknown>, client || apiClient);
+      const elapsed = Date.now() - startTime;
+      console.error(`[MCP Tool] ${name} completado en ${elapsed}ms (${result.length} chars)`);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: result,
+          },
+        ],
+      };
+    } catch (error: any) {
+      const elapsed = Date.now() - startTime;
+      console.error(`[MCP Tool] ${name} ERROR en ${elapsed}ms: ${error.message}`);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Error al ejecutar ${name}: ${error.message}`,
+          },
+        ],
+      };
+    }
   });
 
   return server;
